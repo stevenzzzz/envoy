@@ -1,4 +1,5 @@
 #include "common/upstream/thread_aware_lb_impl.h"
+#include <iostream>
 
 namespace Envoy {
 namespace Upstream {

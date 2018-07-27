@@ -1418,7 +1418,7 @@ TEST(HostsPerLocalityImpl, Filter) {
 class HostSetImplLocalityTest : public ::testing::Test {
 public:
   LocalityWeightsConstSharedPtr locality_weights_;
-  HostSetImpl host_set_{0};
+  HostSetImpl host_set_{0, kDefaultOverProvisioningFactor};
   std::shared_ptr<MockClusterInfo> info_{new NiceMock<MockClusterInfo>()};
   HostVector hosts_{
       makeTestHost(info_, "tcp://127.0.0.1:80"), makeTestHost(info_, "tcp://127.0.0.1:81"),
