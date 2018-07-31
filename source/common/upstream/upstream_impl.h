@@ -309,14 +309,12 @@ public:
   HostSet& getHostSet(uint32_t priority);
 
   // Get the host set for this priority level, creating it if necessary.
-  HostSet& getOrCreateHostSet(
-      uint32_t priority,
-      uint32_t over_provisioning_factor=kDefaultOverProvisioningFactor);
+  HostSet& getOrCreateHostSet(uint32_t priority,
+                              uint32_t over_provisioning_factor = kDefaultOverProvisioningFactor);
 
 protected:
   // Allows subclasses of PrioritySetImpl to create their own type of HostSetImpl.
-  virtual HostSetImplPtr createHostSet(uint32_t priority,
-                                       uint32_t over_provisioning_factor) {
+  virtual HostSetImplPtr createHostSet(uint32_t priority, uint32_t over_provisioning_factor) {
     return HostSetImplPtr{new HostSetImpl(priority, over_provisioning_factor)};
   }
 

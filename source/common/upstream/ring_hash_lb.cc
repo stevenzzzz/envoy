@@ -1,8 +1,8 @@
 #include "common/upstream/ring_hash_lb.h"
 
 #include <cstdint>
-#include <string>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #include "common/common/assert.h"

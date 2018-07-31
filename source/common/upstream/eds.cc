@@ -92,9 +92,9 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
       if (locality_weights_map_.size() <= i) {
         locality_weights_map_.resize(i + 1);
       }
-      cluster_rebuilt |=
-          updateHostsPerLocality(i, over_provisioning_factor, *priority_state[i].first, locality_weights_map_[i],
-                                 priority_state[i].second, priority_state_manager);
+      cluster_rebuilt |= updateHostsPerLocality(i, over_provisioning_factor,
+                                                *priority_state[i].first, locality_weights_map_[i],
+                                                priority_state[i].second, priority_state_manager);
     }
   }
 
@@ -107,9 +107,9 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
     if (locality_weights_map_.size() <= i) {
       locality_weights_map_.resize(i + 1);
     }
-    cluster_rebuilt |= updateHostsPerLocality(i, over_provisioning_factor,
-                                              empty_hosts, locality_weights_map_[i],
-                                              empty_locality_map, priority_state_manager);
+    cluster_rebuilt |=
+        updateHostsPerLocality(i, over_provisioning_factor, empty_hosts, locality_weights_map_[i],
+                               empty_locality_map, priority_state_manager);
   }
 
   if (!cluster_rebuilt) {

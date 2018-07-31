@@ -12,8 +12,8 @@
 #include "envoy/upstream/upstream.h"
 
 #include "common/common/callback_impl.h"
-#include "common/upstream/upstream_impl.h"
 #include "common/upstream/load_balancer_impl.h"
+#include "common/upstream/upstream_impl.h"
 
 #include "test/mocks/config/mocks.h"
 #include "test/mocks/grpc/mocks.h"
@@ -35,7 +35,7 @@ namespace Upstream {
 class MockHostSet : public HostSet {
 public:
   MockHostSet(uint32_t priority = 0,
-              uint32_t over_provisioning_factor=kDefaultOverProvisioningFactor);
+              uint32_t over_provisioning_factor = kDefaultOverProvisioningFactor);
 
   void runCallbacks(const HostVector added, const HostVector removed) {
     member_update_cb_helper_.runCallbacks(priority(), added, removed);
@@ -59,9 +59,7 @@ public:
                                  LocalityWeightsConstSharedPtr locality_weights,
                                  const HostVector& hosts_added, const HostVector& hosts_removed));
   MOCK_CONST_METHOD0(priority, uint32_t());
-  uint32_t over_provisioning_factor() const override {
-    return over_provisioning_factor_;
-  }
+  uint32_t over_provisioning_factor() const override { return over_provisioning_factor_; }
   void set_over_provisioning_factor(const uint32_t over_provisioning_factor) {
     over_provisioning_factor_ = over_provisioning_factor;
   }
