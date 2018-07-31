@@ -138,7 +138,6 @@ TEST_P(LoadBalancerBaseTest, GentleFailover) {
 
   // Health P=0 == 50*1.4 == 70
   updateHostSet(host_set_, 2 /* num_hosts */, 1 /* num_healthy_hosts */);
-
   updateHostSet(failover_host_set_, 2 /* num_hosts */, 1 /* num_healthy_hosts */);
   ASSERT_THAT(getLoadPercentage(), ElementsAre(70, 30));
 

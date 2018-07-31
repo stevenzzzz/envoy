@@ -305,9 +305,6 @@ public:
     return host_sets_;
   }
   std::vector<std::unique_ptr<HostSet>>& hostSetsPerPriority() override { return host_sets_; }
-  // Get the host set for this priority level.
-  HostSet& getHostSet(uint32_t priority);
-
   // Get the host set for this priority level, creating it if necessary.
   HostSet& getOrCreateHostSet(uint32_t priority,
                               uint32_t over_provisioning_factor = kDefaultOverProvisioningFactor);
