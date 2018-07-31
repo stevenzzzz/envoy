@@ -21,7 +21,6 @@ namespace Upstream {
 MockHostSet::MockHostSet(uint32_t priority, uint32_t over_provisioning_factor) :
     priority_(priority), over_provisioning_factor_(over_provisioning_factor) {
   ON_CALL(*this, priority()).WillByDefault(Return(priority_));
-  ON_CALL(*this, over_provisioning_factor()).WillByDefault(Return(over_provisioning_factor_));
   ON_CALL(*this, hosts()).WillByDefault(ReturnRef(hosts_));
   ON_CALL(*this, healthyHosts()).WillByDefault(ReturnRef(healthy_hosts_));
   ON_CALL(*this, hostsPerLocality()).WillByDefault(Invoke([this]() -> const HostsPerLocality& {
