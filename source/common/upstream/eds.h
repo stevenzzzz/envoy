@@ -37,7 +37,7 @@ public:
 private:
   using LocalityWeightsMap =
       std::unordered_map<envoy::api::v2::core::Locality, uint32_t, LocalityHash, LocalityEqualTo>;
-  bool updateHostsPerLocality(const uint32_t priority, const uint32_t over_provisioning_factor,
+  bool updateHostsPerLocality(const uint32_t priority, const uint32_t overprovisioning_factor,
                               const HostVector& new_hosts, LocalityWeightsMap& locality_weights_map,
                               LocalityWeightsMap& new_locality_weights_map,
                               PriorityStateManager& priority_state_manager);

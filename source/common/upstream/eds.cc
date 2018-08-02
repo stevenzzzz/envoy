@@ -81,8 +81,8 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
   // Track whether we rebuilt any LB structures.
   bool cluster_rebuilt = false;
 
-  const uint32_t over_provisioning_factor = PROTOBUF_GET_WRAPPED_OR_DEFAULT(
-      cluster_load_assignment.policy(), over_provisioning_factor, kDefaultOverProvisioningFactor);
+  const uint32_t overprovisioning_factor = PROTOBUF_GET_WRAPPED_OR_DEFAULT(
+      cluster_load_assignment.policy(), overprovisioning_factor, kDefaultOverProvisioningFactor);
 
   // Loop over existing priorities not present in the config. This will empty out any priorities
   // the config update did not refer to
@@ -92,7 +92,7 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
       if (locality_weights_map_.size() <= i) {
         locality_weights_map_.resize(i + 1);
       }
-      cluster_rebuilt |= updateHostsPerLocality(i, over_provisioning_factor,
+      cluster_rebuilt |= updateHostsPerLocality(i, overprovisioning_factor,
                                                 *priority_state[i].first, locality_weights_map_[i],
                                                 priority_state[i].second, priority_state_manager);
     }
@@ -108,7 +108,7 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
       locality_weights_map_.resize(i + 1);
     }
     cluster_rebuilt |=
-        updateHostsPerLocality(i, over_provisioning_factor, empty_hosts, locality_weights_map_[i],
+        updateHostsPerLocality(i, overprovisioning_factor, empty_hosts, locality_weights_map_[i],
                                empty_locality_map, priority_state_manager);
   }
 
@@ -122,12 +122,12 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
 }
 
 bool EdsClusterImpl::updateHostsPerLocality(const uint32_t priority,
-                                            const uint32_t over_provisioning_factor,
+                                            const uint32_t overprovisioning_factor,
                                             const HostVector& new_hosts,
                                             LocalityWeightsMap& locality_weights_map,
                                             LocalityWeightsMap& new_locality_weights_map,
                                             PriorityStateManager& priority_state_manager) {
-  const auto& host_set = priority_set_.getOrCreateHostSet(priority, over_provisioning_factor);
+  const auto& host_set = priority_set_.getOrCreateHostSet(priority, overprovisioning_factor);
   HostVectorSharedPtr current_hosts_copy(new HostVector(host_set.hosts()));
 
   HostVector hosts_added;

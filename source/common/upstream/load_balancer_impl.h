@@ -15,9 +15,7 @@
 namespace Envoy {
 namespace Upstream {
 
-// Priority levels and localities are considered overprovisioned with this factor. This means that
-// we don't consider a priority level or locality unhealthy until the percentage of healthy hosts
-// multiplied by kOverProvisioningFactor drops below 100.
+// Priority levels and localities are considered overprovisioned with this factor. 
 static constexpr uint32_t kDefaultOverProvisioningFactor = 140;
 
 /**

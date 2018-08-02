@@ -116,7 +116,6 @@ TEST_P(LoadBalancerBaseTest, PrioritySelection) {
 }
 
 TEST_P(LoadBalancerBaseTest, OverProvisioningFactor) {
-
   // Default over provisioning factor 1.4 makes P0 receives 70% load.
   updateHostSet(host_set_, 4, 2);
   updateHostSet(failover_host_set_, 4, 2);
