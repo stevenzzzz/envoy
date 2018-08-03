@@ -59,7 +59,7 @@ void LoadBalancerBase::recalculatePerPriorityState(uint32_t priority) {
 
   // Determine the health of the newly modified priority level.
   // Health ranges from 0-100, and is the ratio of healthy hosts to total hosts, modified by the
-  // over provisioning factor.
+  // overprovisioning factor.
   HostSet& host_set = *priority_set_.hostSetsPerPriority()[priority];
   per_priority_health_[priority] = 0;
   if (host_set.hosts().size() > 0) {

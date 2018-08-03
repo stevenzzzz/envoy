@@ -85,7 +85,7 @@ message ClusterLoadAssignment {
     // Priority levels and localities are considered overprovisioned with this
     // factor (in percentage). This means that we don't consider a priority
     // level or locality unhealthy until the percentage of healthy hosts
-    // multiplied by the over provisioning factor drops below 100.
+    // multiplied by the overprovisioning factor drops below 100.
     // Read more at :ref:`priority levels <arch_overview_load_balancing_priority_levels>` and
     // :ref:`localities <arch_overview_load_balancing_locality_weighted_lb>`.
     google.protobuf.UInt32Value overprovisioning_factor = 3 [(validate.rules).uint32.gt = 0];

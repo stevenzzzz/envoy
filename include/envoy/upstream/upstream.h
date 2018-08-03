@@ -248,9 +248,9 @@ public:
   virtual uint32_t priority() const PURE;
 
   /**
-   * @return uint32_t the over provisioning factor of this host set.
+   * @return uint32_t the overprovisioning factor of this host set.
    */
-  virtual uint32_t over_provisioning_factor() const PURE;
+  virtual uint32_t overprovisioning_factor() const PURE;
 };
 
 typedef std::unique_ptr<HostSet> HostSetPtr;

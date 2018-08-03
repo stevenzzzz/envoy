@@ -1536,9 +1536,9 @@ TEST_F(HostSetImplLocalityTest, UnhealthyFailover) {
 }
 
 TEST(OverProvisioningFactorTest, LocalityPickChanges) {
-  auto setUpHostSetWithOPFAndTestPicks = [](const uint32_t over_provisioning_factor,
+  auto setUpHostSetWithOPFAndTestPicks = [](const uint32_t overprovisioning_factor,
                                             const uint32_t pick_0, const uint32_t pick_1) {
-    HostSetImpl host_set(0, over_provisioning_factor);
+    HostSetImpl host_set(0, overprovisioning_factor);
     std::shared_ptr<MockClusterInfo> cluster_info{new NiceMock<MockClusterInfo>()};
     HostVector hosts{makeTestHost(cluster_info, "tcp://127.0.0.1:80"),
                      makeTestHost(cluster_info, "tcp://127.0.0.1:81"),
@@ -1569,7 +1569,7 @@ TEST(OverProvisioningFactorTest, LocalityPickChanges) {
   // NOTE: effective locality weight: weight * min(1, factor * healthy-ratio).
 
   // Picks in localities match to weight(1) * healthy-ratio when
-  // over provisioning factor is 1.
+  // overprovisioning factor is 1.
   setUpHostSetWithOPFAndTestPicks(100, 33, 67);
   // Picks in localities match to weights as factor * healthy-ratio > 1.
   setUpHostSetWithOPFAndTestPicks(200, 50, 50);

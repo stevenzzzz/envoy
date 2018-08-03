@@ -33,7 +33,7 @@
 #include "common/config/metadata.h"
 #include "common/config/well_known_names.h"
 #include "common/network/utility.h"
-#include "common/stats/stats_impl.h"
+#include "common/stats/isolated_store_impl.h"
 #include "common/upstream/load_balancer_impl.h"
 #include "common/upstream/locality.h"
 #include "common/upstream/outlier_detection_impl.h"
@@ -225,7 +225,7 @@ private:
 class HostSetImpl : public HostSet {
 public:
   HostSetImpl(uint32_t priority, uint32_t overprovisioning_factor)
-      : priority_(priority), overprovisioning_factor_(over_provisioning_factor),
+      : priority_(priority), overprovisioning_factor_(overprovisioning_factor),
         hosts_(new HostVector()), healthy_hosts_(new HostVector()) {}
 
   void updateHosts(HostVectorConstSharedPtr hosts, HostVectorConstSharedPtr healthy_hosts,
@@ -256,7 +256,7 @@ public:
   LocalityWeightsConstSharedPtr localityWeights() const override { return locality_weights_; }
   absl::optional<uint32_t> chooseLocality() override;
   uint32_t priority() const override { return priority_; }
-  uint32_t overprovisioning_factor() const override { return over_provisioning_factor_; }
+  uint32_t overprovisioning_factor() const override { return overprovisioning_factor_; }
 
 protected:
   virtual void runUpdateCallbacks(const HostVector& hosts_added, const HostVector& hosts_removed) {

@@ -116,15 +116,15 @@ TEST_P(LoadBalancerBaseTest, PrioritySelection) {
 }
 
 TEST_P(LoadBalancerBaseTest, OverProvisioningFactor) {
-  // Default over provisioning factor 1.4 makes P0 receives 70% load.
+  // Default overprovisioning factor 1.4 makes P0 receives 70% load.
   updateHostSet(host_set_, 4, 2);
   updateHostSet(failover_host_set_, 4, 2);
   ASSERT_THAT(getLoadPercentage(), ElementsAre(70, 30));
 
-  // Set over provisioning factor to 1, now it should be proportioned to healthy ratio.
-  host_set_.set_over_provisioning_factor(100);
+  // Set overprovisioning factor to 1, now it should be proportioned to healthy ratio.
+  host_set_.set_overprovisioning_factor(100);
   updateHostSet(host_set_, 4, 2);
-  failover_host_set_.set_over_provisioning_factor(100);
+  failover_host_set_.set_overprovisioning_factor(100);
   updateHostSet(failover_host_set_, 4, 2);
   ASSERT_THAT(getLoadPercentage(), ElementsAre(50, 50));
 }

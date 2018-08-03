@@ -73,6 +73,7 @@ envoy_cc_test(
         "//source/common/stats:stats_lib",
         "//source/server:hot_restart_lib",
         "//test/mocks/server:server_mocks",
+        "//test/test_common:logging_lib",
         "//test/test_common:threadsafe_singleton_injector_lib",
     ],
 )
@@ -117,6 +118,7 @@ envoy_cc_test(
     srcs = ["overload_manager_impl_test.cc"],
     deps = [
         "//include/envoy/registry",
+        "//source/common/stats:isolated_store_lib",
         "//source/extensions/resource_monitors/common:factory_base_lib",
         "//source/server:overload_manager_lib",
         "//test/mocks/event:event_mocks",
