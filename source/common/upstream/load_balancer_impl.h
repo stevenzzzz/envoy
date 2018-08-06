@@ -15,7 +15,7 @@
 namespace Envoy {
 namespace Upstream {
 
-// Priority levels and localities are considered overprovisioned with this factor. 
+// Priority levels and localities are considered overprovisioned with this factor.
 static constexpr uint32_t kDefaultOverProvisioningFactor = 140;
 
 /**
