@@ -14,6 +14,7 @@
 #include "envoy/secret/secret_manager.h"
 #include "envoy/server/transport_socket_config.h"
 #include "envoy/ssl/context_manager.h"
+#include "envoy/stats/scope.h"
 #include "envoy/upstream/health_checker.h"
 
 #include "common/common/enum_to_int.h"
@@ -291,8 +292,8 @@ ClusterInfoImpl::ClusterInfoImpl(const envoy::api::v2::Cluster& config,
       resource_managers_(config, runtime, name_),
       maintenance_mode_runtime_key_(fmt::format("upstream.maintenance_mode.{}", name_)),
       source_address_(getSourceAddress(config, bind_config)),
-      lb_ring_hash_config_(envoy::api::v2::Cluster::RingHashLbConfig(config.ring_hash_lb_config())),
-      added_via_api_(added_via_api),
+      lb_ring_hash_config_(config.ring_hash_lb_config()),
+      lb_original_dst_config_(config.original_dst_lb_config()), added_via_api_(added_via_api),
       lb_subset_(LoadBalancerSubsetInfoImpl(config.lb_subset_config())),
       metadata_(config.metadata()), common_lb_config_(config.common_lb_config()),
       cluster_socket_options_(parseClusterSocketOptions(config, bind_config)),
@@ -347,6 +348,8 @@ Stats::ScopePtr generateStatsScope(const envoy::api::v2::Cluster& config, Stats:
                                                           : std::string(config.alt_stat_name())));
 }
 
+} // namespace
+
 Network::TransportSocketFactoryPtr createTransportSocketFactory(
     const envoy::api::v2::Cluster& config,
     Server::Configuration::TransportSocketFactoryContext& factory_context) {
@@ -370,8 +373,6 @@ Network::TransportSocketFactoryPtr createTransportSocketFactory(
       Config::Utility::translateToFactoryConfig(transport_socket, config_factory);
   return config_factory.createTransportSocketFactory(*message, factory_context);
 }
-
-} // namespace
 
 ClusterSharedPtr ClusterImplBase::create(
     const envoy::api::v2::Cluster& cluster, ClusterManager& cm, Stats::Store& stats,
