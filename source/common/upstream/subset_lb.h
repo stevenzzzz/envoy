@@ -79,7 +79,7 @@ private:
     LoadBalancerPtr lb_;
 
   protected:
-    HostSetImplPtr createHostSet(uint32_t priority, uint32_t overprovisioning_factor) override;
+    HostSetImplPtr createHostSet(uint32_t priority, absl::optional<uint32_t> overprovisioning_factor) override;
 
   private:
     const PrioritySet& original_priority_set_;

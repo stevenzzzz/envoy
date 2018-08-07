@@ -176,7 +176,12 @@ void HostSetImpl::updateHosts(HostVectorConstSharedPtr hosts,
                               HostsPerLocalityConstSharedPtr hosts_per_locality,
                               HostsPerLocalityConstSharedPtr healthy_hosts_per_locality,
                               LocalityWeightsConstSharedPtr locality_weights,
-                              const HostVector& hosts_added, const HostVector& hosts_removed) {
+                              const HostVector& hosts_added, const HostVector& hosts_removed,
+                              absl::optional<uint32_t> overprovisioning_factor) {
+  if (overprovisioning_factor.has_value()) {
+    ASSERT(overprovisioning_factor.value() > 0);
+    overprovisioning_factor_ = overprovisioning_factor.value();
+  }
   hosts_ = std::move(hosts);
   healthy_hosts_ = std::move(healthy_hosts);
   hosts_per_locality_ = std::move(hosts_per_locality);
@@ -242,7 +247,7 @@ double HostSetImpl::effectiveLocalityWeight(uint32_t index) const {
   return weight * effective_locality_health_ratio;
 }
 
-HostSet& PrioritySetImpl::getOrCreateHostSet(uint32_t priority, uint32_t overprovisioning_factor) {
+HostSet& PrioritySetImpl::getOrCreateHostSet(uint32_t priority, absl::optional<uint32_t> overprovisioning_factor) {
   if (host_sets_.size() < priority + 1) {
     for (size_t i = host_sets_.size(); i <= priority; ++i) {
       HostSetImplPtr host_set = createHostSet(i, overprovisioning_factor);
@@ -594,7 +599,7 @@ void ClusterImplBase::reloadHealthyHosts() {
     HostsPerLocalityConstSharedPtr hosts_per_locality_copy = host_set->hostsPerLocality().clone();
     host_set->updateHosts(
         hosts_copy, createHealthyHostList(host_set->hosts()), hosts_per_locality_copy,
-        createHealthyHostLists(host_set->hostsPerLocality()), host_set->localityWeights(), {}, {});
+        createHealthyHostLists(host_set->hostsPerLocality()), host_set->localityWeights(), {}, {}, absl::nullopt);
   }
 }
 
@@ -716,7 +721,7 @@ void PriorityStateManager::registerHostForPriority(
 void PriorityStateManager::updateClusterPrioritySet(
     const uint32_t priority, HostVectorSharedPtr&& current_hosts,
     const absl::optional<HostVector>& hosts_added, const absl::optional<HostVector>& hosts_removed,
-    const absl::optional<Upstream::Host::HealthFlag> health_checker_flag) {
+    const absl::optional<Upstream::Host::HealthFlag> health_checker_flag, absl::optional<uint32_t> overprovisioning_factor) {
   // If local locality is not defined then skip populating per locality hosts.
   const auto& local_locality = local_info_node_.locality();
   ENVOY_LOG(trace, "Local locality: {}", local_locality.DebugString());
@@ -778,11 +783,11 @@ void PriorityStateManager::updateClusterPrioritySet(
       std::make_shared<HostsPerLocalityImpl>(std::move(per_locality), non_empty_local_locality);
 
   auto& host_set =
-      static_cast<PrioritySetImpl&>(parent_.prioritySet()).getOrCreateHostSet(priority);
+      static_cast<PrioritySetImpl&>(parent_.prioritySet()).getOrCreateHostSet(priority, overprovisioning_factor);
   host_set.updateHosts(hosts, ClusterImplBase::createHealthyHostList(*hosts), per_locality_shared,
                        ClusterImplBase::createHealthyHostLists(*per_locality_shared),
                        std::move(locality_weights), hosts_added.value_or(*hosts),
-                       hosts_removed.value_or<HostVector>({}));
+                       hosts_removed.value_or<HostVector>({}), overprovisioning_factor);
 }
 
 StaticClusterImpl::StaticClusterImpl(

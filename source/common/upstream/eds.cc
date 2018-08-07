@@ -83,8 +83,10 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
   // Track whether we rebuilt any LB structures.
   bool cluster_rebuilt = false;
 
-  const uint32_t overprovisioning_factor = PROTOBUF_GET_WRAPPED_OR_DEFAULT(
-      cluster_load_assignment.policy(), overprovisioning_factor, kDefaultOverProvisioningFactor);
+  absl::optional<uint32_t> overprovisioning_factor = absl::nullopt;
+  if (cluster_load_assignment.policy().has_overprovisioning_factor()) {
+    overprovisioning_factor = cluster_load_assignment.policy().overprovisioning_factor().value();
+  }
 
   // Loop over existing priorities not present in the config. This will empty out any priorities
   // the config update did not refer to
@@ -124,7 +126,7 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
 }
 
 bool EdsClusterImpl::updateHostsPerLocality(const uint32_t priority,
-                                            const uint32_t overprovisioning_factor,
+                                            absl::optional<uint32_t> overprovisioning_factor,
                                             const HostVector& new_hosts,
                                             LocalityWeightsMap& locality_weights_map,
                                             LocalityWeightsMap& new_locality_weights_map,
@@ -148,8 +150,9 @@ bool EdsClusterImpl::updateHostsPerLocality(const uint32_t priority,
     ENVOY_LOG(debug, "EDS hosts or locality weights changed for cluster: {} ({}) priority {}",
               info_->name(), host_set.hosts().size(), host_set.priority());
 
-    priority_state_manager.updateClusterPrioritySet(priority, std::move(current_hosts_copy),
-                                                    hosts_added, hosts_removed, absl::nullopt);
+    priority_state_manager.updateClusterPrioritySet(priority,  std::move(current_hosts_copy),
+                                                    hosts_added, hosts_removed, absl::nullopt,
+                                                    overprovisioning_factor);
     return true;
   }
   return false;
