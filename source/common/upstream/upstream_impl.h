@@ -225,16 +225,17 @@ private:
 class HostSetImpl : public HostSet {
 public:
   HostSetImpl(uint32_t priority, absl::optional<uint32_t> overprovisioning_factor)
-      : priority_(priority), overprovisioning_factor_(overprovisioning_factor.has_value()?overprovisioning_factor.value():kDefaultOverProvisioningFactor),
+      : priority_(priority), overprovisioning_factor_(overprovisioning_factor.has_value()
+                                                          ? overprovisioning_factor.value()
+                                                          : kDefaultOverProvisioningFactor),
         hosts_(new HostVector()), healthy_hosts_(new HostVector()) {}
-
 
   void updateHosts(HostVectorConstSharedPtr hosts, HostVectorConstSharedPtr healthy_hosts,
                    HostsPerLocalityConstSharedPtr hosts_per_locality,
                    HostsPerLocalityConstSharedPtr healthy_hosts_per_locality,
                    LocalityWeightsConstSharedPtr locality_weights, const HostVector& hosts_added,
                    const HostVector& hosts_removed,
-                   absl::optional<uint32_t> overprovisioning_factor=absl::nullopt) override;
+                   absl::optional<uint32_t> overprovisioning_factor = absl::nullopt) override;
 
   /**
    * Install a callback that will be invoked when the host set membership changes.
@@ -309,11 +310,12 @@ public:
   std::vector<std::unique_ptr<HostSet>>& hostSetsPerPriority() override { return host_sets_; }
   // Get the host set for this priority level, creating it if necessary.
   HostSet& getOrCreateHostSet(uint32_t priority,
-                              absl::optional<uint32_t> overprovisioning_factor=absl::nullopt);
+                              absl::optional<uint32_t> overprovisioning_factor = absl::nullopt);
 
 protected:
   // Allows subclasses of PrioritySetImpl to create their own type of HostSetImpl.
-  virtual HostSetImplPtr createHostSet(uint32_t priority, absl::optional<uint32_t> overprovisioning_factor) {
+  virtual HostSetImplPtr createHostSet(uint32_t priority,
+                                       absl::optional<uint32_t> overprovisioning_factor) {
     return HostSetImplPtr{new HostSetImpl(priority, overprovisioning_factor)};
   }
 
@@ -547,12 +549,11 @@ public:
                           const absl::optional<Upstream::Host::HealthFlag> health_checker_flag);
 
   void
-  updateClusterPrioritySet(const uint32_t priority,
-                           HostVectorSharedPtr&& current_hosts,
+  updateClusterPrioritySet(const uint32_t priority, HostVectorSharedPtr&& current_hosts,
                            const absl::optional<HostVector>& hosts_added,
                            const absl::optional<HostVector>& hosts_removed,
                            const absl::optional<Upstream::Host::HealthFlag> health_checker_flag,
-                           absl::optional<uint32_t> overprovisioning_factor=absl::nullopt);
+                           absl::optional<uint32_t> overprovisioning_factor = absl::nullopt);
 
   // Returns the size of the current cluster priority state.
   size_t size() const { return priority_state_.size(); }

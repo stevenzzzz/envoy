@@ -67,6 +67,7 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
   PriorityStateManager priority_state_manager(*this, local_info_);
   for (const auto& locality_lb_endpoint : cluster_load_assignment.endpoints()) {
     const uint32_t priority = locality_lb_endpoint.priority();
+
     if (priority > 0 && !cluster_name_.empty() && cluster_name_ == cm_.localClusterName()) {
       throw EnvoyException(
           fmt::format("Unexpected non-zero priority for local cluster '{}'.", cluster_name_));
@@ -86,6 +87,8 @@ void EdsClusterImpl::onConfigUpdate(const ResourceVector& resources, const std::
   absl::optional<uint32_t> overprovisioning_factor = absl::nullopt;
   if (cluster_load_assignment.policy().has_overprovisioning_factor()) {
     overprovisioning_factor = cluster_load_assignment.policy().overprovisioning_factor().value();
+
+    std::cerr << "DDD new vale is set to : " << overprovisioning_factor.value() << std::endl;
   }
 
   // Loop over existing priorities not present in the config. This will empty out any priorities
@@ -144,13 +147,14 @@ bool EdsClusterImpl::updateHostsPerLocality(const uint32_t priority,
   // out of the locality scheduler, we discover their new weights. We don't currently have a shared
   // object for locality weights that we can update here, we should add something like this to
   // improve performance and scalability of locality weight updates.
-  if (updateDynamicHostList(new_hosts, *current_hosts_copy, hosts_added, hosts_removed) ||
+  if (overprovisioning_factor.has_value() ||
+      updateDynamicHostList(new_hosts, *current_hosts_copy, hosts_added, hosts_removed) ||
       locality_weights_map != new_locality_weights_map) {
     locality_weights_map = new_locality_weights_map;
     ENVOY_LOG(debug, "EDS hosts or locality weights changed for cluster: {} ({}) priority {}",
               info_->name(), host_set.hosts().size(), host_set.priority());
 
-    priority_state_manager.updateClusterPrioritySet(priority,  std::move(current_hosts_copy),
+    priority_state_manager.updateClusterPrioritySet(priority, std::move(current_hosts_copy),
                                                     hosts_added, hosts_removed, absl::nullopt,
                                                     overprovisioning_factor);
     return true;

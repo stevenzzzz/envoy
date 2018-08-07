@@ -57,7 +57,8 @@ public:
                                  HostsPerLocalityConstSharedPtr hosts_per_locality,
                                  HostsPerLocalityConstSharedPtr healthy_hosts_per_locality,
                                  LocalityWeightsConstSharedPtr locality_weights,
-                                 const HostVector& hosts_added, const HostVector& hosts_removed, absl::optional<uint32_t> overprovisioning_factor));
+                                 const HostVector& hosts_added, const HostVector& hosts_removed,
+                                 absl::optional<uint32_t> overprovisioning_factor));
   MOCK_CONST_METHOD0(priority, uint32_t());
   uint32_t overprovisioning_factor() const override { return overprovisioning_factor_; }
   void set_overprovisioning_factor(const uint32_t overprovisioning_factor) {
