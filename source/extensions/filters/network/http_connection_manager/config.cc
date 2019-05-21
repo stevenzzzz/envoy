@@ -97,13 +97,14 @@ HttpConnectionManagerFilterConfigFactory::createFilterFactoryFromProtoTyped(
           });
 
   std::shared_ptr<HttpConnectionManagerConfig> filter_config(new HttpConnectionManagerConfig(
-      proto_config, context, *date_provider, *route_config_provider_manager, *scoped_routes_config_provider_manager));
+      proto_config, context, *date_provider, *route_config_provider_manager,
+      *scoped_routes_config_provider_manager));
 
   // This lambda captures the shared_ptrs created above, thus preserving the
   // reference count. Moreover, keep in mind the capture list determines
   // destruction order.
-  return [route_config_provider_manager, scoped_routes_config_provider_manager, filter_config, &context,
-          date_provider](Network::FilterManager& filter_manager) -> void {
+  return [route_config_provider_manager, scoped_routes_config_provider_manager, filter_config,
+          &context, date_provider](Network::FilterManager& filter_manager) -> void {
     filter_manager.addReadFilter(Network::ReadFilterSharedPtr{new Http::ConnectionManagerImpl(
         *filter_config, context.drainDecision(), context.random(), context.httpContext(),
         context.runtime(), context.localInfo(), context.clusterManager(),
@@ -176,10 +177,10 @@ HttpConnectionManagerConfig::HttpConnectionManagerConfig(
   // If scoped RDS is enabled, avoid creating a route config provider. Route config providers will
   // be managed by the scoped routing logic instead.
   if (config.route_specifier_case() != envoy::config::filter::network::http_connection_manager::v2::
-  HttpConnectionManager::kScopedRoutes) {
+                                           HttpConnectionManager::kScopedRoutes) {
     route_config_provider_ = Router::RouteConfigProviderUtil::create(
         config, context_, stats_prefix_, route_config_provider_manager_);
-  } else{
+  } else {
     scoped_routes_config_provider_ = Router::ScopedRoutesConfigProviderUtil::maybeCreate(
         config, context_, stats_prefix_, scoped_routes_config_provider_manager_);
   }

@@ -12,6 +12,7 @@
 // * Idle/drain timeouts.
 // * HTTP 1.0 special cases
 // * Fuzz config settings
+
 #include "common/common/empty_string.h"
 #include "common/http/conn_manager_impl.h"
 #include "common/http/context_impl.h"
@@ -29,6 +30,7 @@
 #include "test/mocks/local_info/mocks.h"
 #include "test/mocks/network/mocks.h"
 #include "test/mocks/runtime/mocks.h"
+#include "test/common/http/conn_manager_impl_common.h"
 #include "test/mocks/ssl/mocks.h"
 #include "test/mocks/tracing/mocks.h"
 #include "test/mocks/upstream/mocks.h"
@@ -44,21 +46,9 @@ namespace Http {
 
 class FuzzConfig : public ConnectionManagerConfig {
 public:
-  struct RouteConfigProvider : public Router::RouteConfigProvider {
-    RouteConfigProvider(TimeSource& time_source) : time_source_(time_source) {}
-
-    // Router::RouteConfigProvider
-    Router::ConfigConstSharedPtr config() override { return route_config_; }
-    absl::optional<ConfigInfo> configInfo() const override { return {}; }
-    SystemTime lastUpdated() const override { return time_source_.systemTime(); }
-    void onConfigUpdate() override {}
-
-    TimeSource& time_source_;
-    std::shared_ptr<Router::MockConfig> route_config_{new NiceMock<Router::MockConfig>()};
-  };
 
   FuzzConfig()
-      : route_config_provider_(time_system_),
+      : route_config_provider_(time_system_),scoped_routes_config_provider_(time_system_),
         stats_{{ALL_HTTP_CONN_MAN_STATS(POOL_COUNTER(fake_stats_), POOL_GAUGE(fake_stats_),
                                         POOL_HISTOGRAM(fake_stats_))},
                "",
@@ -97,6 +87,9 @@ public:
   std::chrono::milliseconds requestTimeout() const override { return request_timeout_; }
   std::chrono::milliseconds delayedCloseTimeout() const override { return delayed_close_timeout_; }
   Router::RouteConfigProvider& routeConfigProvider() override { return route_config_provider_; }
+  Config::ConfigProvider* ScopedRoutesConfigProvider() override {
+    return &scoped_routes_config_provider_;
+  }
   const std::string& serverName() override { return server_name_; }
   ConnectionManagerStats& stats() override { return stats_; }
   ConnectionManagerTracingStats& tracingStats() override { return tracing_stats_; }
@@ -128,6 +121,7 @@ public:
   Event::SimulatedTimeSystem time_system_;
   SlowDateProviderImpl date_provider_{time_system_};
   RouteConfigProvider route_config_provider_;
+  ConnectionManagerImplHelper::ScopedRoutesConfigProvider scoped_routes_config_provider_;
   std::string server_name_;
   Stats::IsolatedStoreImpl fake_stats_;
   ConnectionManagerStats stats_;

@@ -7,11 +7,11 @@
 #include <map>
 #include <string>
 
+#include "envoy/config/config_provider_manager.h"
 #include "envoy/config/filter/network/http_connection_manager/v2/http_connection_manager.pb.validate.h"
 #include "envoy/http/filter.h"
 #include "envoy/router/route_config_provider_manager.h"
-#include "envoy/config/config_provider_manager.h"
-#include "envoy/config/config_provider_manager.h"
+
 #include "common/common/logger.h"
 #include "common/http/conn_manager_impl.h"
 #include "common/json/json_loader.h"
@@ -106,8 +106,12 @@ public:
   absl::optional<std::chrono::milliseconds> idleTimeout() const override { return idle_timeout_; }
   std::chrono::milliseconds streamIdleTimeout() const override { return stream_idle_timeout_; }
   std::chrono::milliseconds requestTimeout() const override { return request_timeout_; }
-  Router::RouteConfigProvider* routeConfigProvider() override { return route_config_provider_.get(); }
-  Config::ConfigProvider* scopedRoutesConfigProvider() override { return scoped_routes_config_provider_.get(); }
+  Router::RouteConfigProvider* routeConfigProvider() override {
+    return route_config_provider_.get();
+  }
+  Config::ConfigProvider* scopedRoutesConfigProvider() override {
+    return scoped_routes_config_provider_.get();
+  }
   const std::string& serverName() override { return server_name_; }
   Http::ConnectionManagerStats& stats() override { return stats_; }
   Http::ConnectionManagerTracingStats& tracingStats() override { return tracing_stats_; }

@@ -405,13 +405,14 @@ ConnectionManagerImpl::ActiveStream::ActiveStream(ConnectionManagerImpl& connect
           connection_manager_.stats_.named_.downstream_rq_time_, connection_manager_.timeSource())),
       stream_info_(connection_manager_.codec_->protocol(), connection_manager_.timeSource()),
       upstream_options_(std::make_shared<Network::Socket::Options>()) {
-  if(connection_manager.config_.routeConfigProvider()!= nullptr){
+  if (connection_manager.config_.routeConfigProvider() != nullptr) {
     snapped_route_config_ = connection_manager.config_.routeConfigProvider()->config();
   } else if (connection_manager.config_.scopedRoutesConfigProvider() != nullptr) {
     snapped_scoped_routes_config_ =
         connection_manager_.config_.scopedRoutesConfigProvider()->config<Router::ScopedConfig>();
-  }else{
-    ASSERT(false, "Either routeConfigProvider or scopedRoutesConfigProvider should be nullptr in ConnectionManagerImpl, but both.");
+  } else {
+    ASSERT(false, "Either routeConfigProvider or scopedRoutesConfigProvider should be nullptr in "
+                  "ConnectionManagerImpl, but both.");
   }
   connection_manager_.stats_.named_.downstream_rq_total_.inc();
   connection_manager_.stats_.named_.downstream_rq_active_.inc();
@@ -583,8 +584,8 @@ const Network::Connection* ConnectionManagerImpl::ActiveStream::connection() {
 // e.g. many early returns do not currently handle connection: close properly.
 void ConnectionManagerImpl::ActiveStream::decodeHeaders(HeaderMapPtr&& headers, bool end_stream) {
   request_headers_ = std::move(headers);
-  if(snapped_scoped_routes_config_!= nullptr) {
-    ASSERT(snapped_route_config_== nullptr, "Route config already latched to the active stream.");
+  if (snapped_scoped_routes_config_ != nullptr) {
+    ASSERT(snapped_route_config_ == nullptr, "Route config already latched to the active stream.");
     snapped_route_config_ = snapped_scoped_routes_config_->getRouterConfig(*request_headers_);
   }
 

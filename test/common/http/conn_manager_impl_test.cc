@@ -32,6 +32,7 @@
 #include "test/mocks/http/mocks.h"
 #include "test/mocks/local_info/mocks.h"
 #include "test/mocks/network/mocks.h"
+#include "test/common/http/conn_manager_impl_common.h"
 #include "test/mocks/runtime/mocks.h"
 #include "test/mocks/server/mocks.h"
 #include "test/mocks/ssl/mocks.h"
@@ -63,21 +64,9 @@ namespace Http {
 
 class HttpConnectionManagerImplTest : public testing::Test, public ConnectionManagerConfig {
 public:
-  struct RouteConfigProvider : public Router::RouteConfigProvider {
-    RouteConfigProvider(TimeSource& time_source) : time_source_(time_source) {}
-
-    // Router::RouteConfigProvider
-    Router::ConfigConstSharedPtr config() override { return route_config_; }
-    absl::optional<ConfigInfo> configInfo() const override { return {}; }
-    SystemTime lastUpdated() const override { return time_source_.systemTime(); }
-    void onConfigUpdate() override {}
-
-    TimeSource& time_source_;
-    std::shared_ptr<Router::MockConfig> route_config_{new NiceMock<Router::MockConfig>()};
-  };
-
   HttpConnectionManagerImplTest()
-      : route_config_provider_(test_time_.timeSystem()), access_log_path_("dummy_path"),
+      : route_config_provider_(test_time_.timeSystem()),
+        scoped_route_config_provider_(test_time_.timeSystem()), access_log_path_("dummy_path"),
         access_logs_{
             AccessLog::InstanceSharedPtr{new Extensions::AccessLoggers::File::FileAccessLog(
                 access_log_path_, {}, AccessLog::AccessLogFormatUtils::defaultAccessLogFormatter(),
@@ -281,6 +270,7 @@ public:
 
   DangerousDeprecatedTestTime test_time_;
   RouteConfigProvider route_config_provider_;
+  ConnectionManagerImplHelper::ScopedRouteConfigProvider scoped_route_config_provider_;
   NiceMock<Tracing::MockHttpTracer> tracer_;
   Stats::IsolatedStoreImpl fake_stats_;
   Http::ContextImpl http_context_;
