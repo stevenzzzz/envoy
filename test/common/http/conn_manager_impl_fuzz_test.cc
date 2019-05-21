@@ -46,7 +46,6 @@ namespace Http {
 
 class FuzzConfig : public ConnectionManagerConfig {
 public:
-
   FuzzConfig()
       : route_config_provider_(time_system_),scoped_routes_config_provider_(time_system_),
         stats_{{ALL_HTTP_CONN_MAN_STATS(POOL_COUNTER(fake_stats_), POOL_GAUGE(fake_stats_),
@@ -86,7 +85,7 @@ public:
   std::chrono::milliseconds streamIdleTimeout() const override { return stream_idle_timeout_; }
   std::chrono::milliseconds requestTimeout() const override { return request_timeout_; }
   std::chrono::milliseconds delayedCloseTimeout() const override { return delayed_close_timeout_; }
-  Router::RouteConfigProvider& routeConfigProvider() override { return route_config_provider_; }
+  Router::RouteConfigProvider* routeConfigProvider() override { return &route_config_provider_; }
   Config::ConfigProvider* ScopedRoutesConfigProvider() override {
     return &scoped_routes_config_provider_;
   }

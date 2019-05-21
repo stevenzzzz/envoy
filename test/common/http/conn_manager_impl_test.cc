@@ -66,7 +66,7 @@ class HttpConnectionManagerImplTest : public testing::Test, public ConnectionMan
 public:
   HttpConnectionManagerImplTest()
       : route_config_provider_(test_time_.timeSystem()),
-        scoped_route_config_provider_(test_time_.timeSystem()), access_log_path_("dummy_path"),
+        scoped_routes_config_provider_(test_time_.timeSystem()), access_log_path_("dummy_path"),
         access_logs_{
             AccessLog::InstanceSharedPtr{new Extensions::AccessLoggers::File::FileAccessLog(
                 access_log_path_, {}, AccessLog::AccessLogFormatUtils::defaultAccessLogFormatter(),
@@ -245,7 +245,8 @@ public:
   std::chrono::milliseconds streamIdleTimeout() const override { return stream_idle_timeout_; }
   std::chrono::milliseconds requestTimeout() const override { return request_timeout_; }
   std::chrono::milliseconds delayedCloseTimeout() const override { return delayed_close_timeout_; }
-  Router::RouteConfigProvider& routeConfigProvider() override { return route_config_provider_; }
+  Router::RouteConfigProvider* routeConfigProvider() override { return &route_config_provider_; }
+  Config::ConfigProvider* scopedRoutesConfigProvider() override { return &scoped_routes_config_provider_; }
   const std::string& serverName() override { return server_name_; }
   ConnectionManagerStats& stats() override { return stats_; }
   ConnectionManagerTracingStats& tracingStats() override { return tracing_stats_; }
@@ -269,8 +270,8 @@ public:
   bool shouldNormalizePath() const override { return normalize_path_; }
 
   DangerousDeprecatedTestTime test_time_;
-  RouteConfigProvider route_config_provider_;
-  ConnectionManagerImplHelper::ScopedRouteConfigProvider scoped_route_config_provider_;
+  ConnectionManagerImplHelper::RouteConfigProvider route_config_provider_;
+  ConnectionManagerImplHelper::ScopedRoutesConfigProvider scoped_routes_config_provider_;
   NiceMock<Tracing::MockHttpTracer> tracer_;
   Stats::IsolatedStoreImpl fake_stats_;
   Http::ContextImpl http_context_;
