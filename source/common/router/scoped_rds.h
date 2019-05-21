@@ -134,7 +134,7 @@ public:
                           const envoy::config::filter::network::http_connection_manager::v2::
                               ScopedRoutes::ScopeKeyBuilder& scope_key_builder);
 
-  ScopedRdsConfigSubscription& subscription() { return *subscription_; }
+  ScopedRdsConfigSubscription& subscription() { return *static_cast<ScopedRdsConfigSubscription*>(subscription_.get()); }
 
   // getConfig() is overloaded (const/non-const only). Make all base getConfig()s visible to avoid
   // compiler warnings.
@@ -146,7 +146,6 @@ public:
   }
 
 private:
-  ScopedRdsConfigSubscription* subscription_;
   const envoy::api::v2::core::ConfigSource rds_config_source_;
 };
 

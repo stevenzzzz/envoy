@@ -159,6 +159,7 @@ envoy_cc_library(
         "//include/envoy/network:drain_decision_interface",
         "//include/envoy/network:filter_interface",
         "//include/envoy/router:rds_interface",
+        "//include/envoy/router:scopes_interface",
         "//include/envoy/runtime:runtime_interface",
         "//include/envoy/server:overload_manager_interface",
         "//include/envoy/ssl:connection_interface",

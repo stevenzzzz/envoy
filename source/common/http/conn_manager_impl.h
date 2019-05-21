@@ -18,6 +18,7 @@
 #include "envoy/network/drain_decision.h"
 #include "envoy/network/filter.h"
 #include "envoy/router/rds.h"
+#include "envoy/router/scopes.h"
 #include "envoy/runtime/runtime.h"
 #include "envoy/server/overload_manager.h"
 #include "envoy/ssl/connection.h"
@@ -364,6 +365,7 @@ private:
     void maybeEndDecode(bool end_stream);
     void addEncodedData(ActiveStreamEncoderFilter& filter, Buffer::Instance& data, bool streaming);
     HeaderMap& addEncodedTrailers();
+
     void sendLocalReply(bool is_grpc_request, Code code, absl::string_view body,
                         const std::function<void(HeaderMap& headers)>& modify_headers,
                         bool is_head_request,
@@ -489,6 +491,7 @@ private:
 
     ConnectionManagerImpl& connection_manager_;
     Router::ConfigConstSharedPtr snapped_route_config_;
+    Router::ScopedConfigConstSharedPtr snapped_scoped_routes_config_;
     Tracing::SpanPtr active_span_;
     const uint64_t stream_id_;
     StreamEncoder* response_encoder_{};
