@@ -86,7 +86,7 @@ public:
   std::chrono::milliseconds requestTimeout() const override { return request_timeout_; }
   std::chrono::milliseconds delayedCloseTimeout() const override { return delayed_close_timeout_; }
   Router::RouteConfigProvider* routeConfigProvider() override { return &route_config_provider_; }
-  Config::ConfigProvider* ScopedRoutesConfigProvider() override {
+  Config::ConfigProvider* scopedRoutesConfigProvider() override {
     return &scoped_routes_config_provider_;
   }
   const std::string& serverName() override { return server_name_; }
@@ -119,7 +119,7 @@ public:
   NiceMock<MockFilterChainFactory> filter_factory_;
   Event::SimulatedTimeSystem time_system_;
   SlowDateProviderImpl date_provider_{time_system_};
-  RouteConfigProvider route_config_provider_;
+  ConnectionManagerImplHelper::RouteConfigProvider route_config_provider_;
   ConnectionManagerImplHelper::ScopedRoutesConfigProvider scoped_routes_config_provider_;
   std::string server_name_;
   Stats::IsolatedStoreImpl fake_stats_;
