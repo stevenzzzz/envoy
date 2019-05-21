@@ -26,13 +26,13 @@
 
 #include "extensions/access_loggers/file/file_access_log_impl.h"
 
+#include "test/common/http/conn_manager_impl_common.h"
 #include "test/mocks/access_log/mocks.h"
 #include "test/mocks/buffer/mocks.h"
 #include "test/mocks/common.h"
 #include "test/mocks/http/mocks.h"
 #include "test/mocks/local_info/mocks.h"
 #include "test/mocks/network/mocks.h"
-#include "test/common/http/conn_manager_impl_common.h"
 #include "test/mocks/runtime/mocks.h"
 #include "test/mocks/server/mocks.h"
 #include "test/mocks/ssl/mocks.h"
@@ -246,7 +246,9 @@ public:
   std::chrono::milliseconds requestTimeout() const override { return request_timeout_; }
   std::chrono::milliseconds delayedCloseTimeout() const override { return delayed_close_timeout_; }
   Router::RouteConfigProvider* routeConfigProvider() override { return &route_config_provider_; }
-  Config::ConfigProvider* scopedRoutesConfigProvider() override { return &scoped_routes_config_provider_; }
+  Config::ConfigProvider* scopedRoutesConfigProvider() override {
+    return &scoped_routes_config_provider_;
+  }
   const std::string& serverName() override { return server_name_; }
   ConnectionManagerStats& stats() override { return stats_; }
   ConnectionManagerTracingStats& tracingStats() override { return tracing_stats_; }

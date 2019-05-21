@@ -40,9 +40,7 @@ struct ScopedRoutesConfigProvider : public Config::ConfigProvider {
   // Config::ConfigProvider
   SystemTime lastUpdated() const override { return time_source_.systemTime(); }
   const Protobuf::Message* getConfigProto() const override { return nullptr; }
-  Envoy::Config::ConfigProvider::ConfigProtoVector getConfigProtos() const override {
-    return {};
-  }
+  Envoy::Config::ConfigProvider::ConfigProtoVector getConfigProtos() const override { return {}; }
   std::string getConfigVersion() const override { return ""; }
   ConfigConstSharedPtr getConfig() const override { return config_; }
   ApiType apiType() const override { return ApiType::Delta; }
