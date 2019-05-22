@@ -6,6 +6,10 @@
 #include "envoy/api/v2/srds.pb.validate.h"
 
 #include "common/common/assert.h"
+<<<<<<< HEAD
+=======
+#include "common/common/logger.h"
+>>>>>>> master
 #include "common/config/subscription_factory.h"
 
 // Types are deeply nested under Envoy::Config::ConfigProvider; use 'using-directives' across all
@@ -18,6 +22,7 @@ using Envoy::Config::ConfigProviderPtr;
 namespace Envoy {
 namespace Router {
 
+<<<<<<< HEAD
 ConfigProviderPtr ScopedRoutesConfigProviderUtil::maybeCreate(
     const envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager&
         config,
@@ -67,6 +72,10 @@ ConfigProviderPtr ScopedRoutesConfigProviderUtil::maybeCreate(
 
 InlineScopedRoutesConfigProvider::InlineScopedRoutesConfigProvider(
     std::vector<std::unique_ptr<const Protobuf::Message>>&& config_protos, std::string name,
+=======
+InlineScopedRoutesConfigProvider::InlineScopedRoutesConfigProvider(
+    ProtobufTypes::ConstMessagePtrVector&& config_protos, std::string name,
+>>>>>>> master
     Server::Configuration::FactoryContext& factory_context,
     ScopedRoutesConfigProviderManager& config_provider_manager,
     envoy::api::v2::core::ConfigSource rds_config_source,
@@ -105,12 +114,15 @@ ScopedRdsConfigSubscription::ScopedRdsConfigSubscription(
 void ScopedRdsConfigSubscription::onConfigUpdate(
     const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources,
     const std::string& version_info) {
+<<<<<<< HEAD
   if (resources.empty()) {
     ENVOY_LOG(debug, "Empty resources in scoped RDS onConfigUpdate()");
     stats_.update_empty_.inc();
     ConfigSubscriptionCommonBase::onConfigUpdateFailed();
     return;
   }
+=======
+>>>>>>> master
   std::vector<envoy::api::v2::ScopedRouteConfiguration> scoped_routes;
   for (const auto& resource_any : resources) {
     scoped_routes.emplace_back(
@@ -135,6 +147,7 @@ void ScopedRdsConfigSubscription::onConfigUpdate(
       scoped_config_manager_.scopedRouteMap();
   for (auto& scoped_route : scoped_routes) {
     const std::string& scoped_route_name = scoped_route.name();
+<<<<<<< HEAD
     try {
       scoped_routes_to_remove.erase(scoped_route_name);
       ScopedRouteInfoConstSharedPtr scoped_route_info =
@@ -153,11 +166,26 @@ void ScopedRdsConfigSubscription::onConfigUpdate(
     } catch (const EnvoyException& ex) {
       exception_msgs.push_back(fmt::format("{}: {}", scoped_route_name, ex.what()));
     }
+=======
+    scoped_routes_to_remove.erase(scoped_route_name);
+    ScopedRouteInfoConstSharedPtr scoped_route_info =
+        scoped_config_manager_.addOrUpdateRoutingScope(scoped_route, version_info);
+    ENVOY_LOG(debug, "srds: add/update scoped_route '{}'", scoped_route_name);
+    applyDeltaConfigUpdate([scoped_route_info](const ConfigProvider::ConfigConstSharedPtr& config) {
+      auto* thread_local_scoped_config = const_cast<ThreadLocalScopedConfigImpl*>(
+          static_cast<const ThreadLocalScopedConfigImpl*>(config.get()));
+      thread_local_scoped_config->addOrUpdateRoutingScope(scoped_route_info);
+    });
+>>>>>>> master
   }
 
   for (const auto& scoped_route : scoped_routes_to_remove) {
     const std::string scoped_route_name = scoped_route.first;
     ENVOY_LOG(debug, "srds: remove scoped route '{}'", scoped_route_name);
+<<<<<<< HEAD
+=======
+    scoped_config_manager_.removeRoutingScope(scoped_route_name);
+>>>>>>> master
     applyDeltaConfigUpdate([scoped_route_name](const ConfigProvider::ConfigConstSharedPtr& config) {
       auto* thread_local_scoped_config = const_cast<ThreadLocalScopedConfigImpl*>(
           static_cast<const ThreadLocalScopedConfigImpl*>(config.get()));
@@ -167,10 +195,13 @@ void ScopedRdsConfigSubscription::onConfigUpdate(
 
   ConfigSubscriptionCommonBase::onConfigUpdate();
   setLastConfigInfo(absl::optional<LastConfigInfo>({absl::nullopt, version_info}));
+<<<<<<< HEAD
   if (!exception_msgs.empty()) {
     throw EnvoyException(fmt::format("Error adding/updating scoped route(s) {}",
                                      StringUtil::join(exception_msgs, ", ")));
   }
+=======
+>>>>>>> master
   stats_.config_reload_.inc();
 }
 
@@ -182,6 +213,8 @@ ScopedRdsConfigProvider::ScopedRdsConfigProvider(
         ScopeKeyBuilder& scope_key_builder)
     : DeltaMutableConfigProviderBase(std::move(subscription), factory_context,
                                      ConfigProvider::ApiType::Delta),
+      subscription_(static_cast<ScopedRdsConfigSubscription*>(
+          MutableConfigProviderCommonBase::subscription_.get())),
       rds_config_source_(std::move(rds_config_source)) {
   initialize([scope_key_builder](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
     return std::make_shared<ThreadLocalScopedConfigImpl>(scope_key_builder);
@@ -213,9 +246,7 @@ ProtobufTypes::MessagePtr ScopedRoutesConfigProviderManager::dumpConfigs() const
   for (const auto& provider : immutableConfigProviders(ConfigProviderInstanceType::Inline)) {
     const auto protos_info =
         provider->configProtoInfoVector<envoy::api::v2::ScopedRouteConfiguration>();
-    if (protos_info == absl::nullopt) {
-      continue;
-    }
+    ASSERT(protos_info != absl::nullopt);
     auto* inline_config = config_dump->mutable_inline_scoped_route_configs()->Add();
     inline_config->set_name(static_cast<InlineScopedRoutesConfigProvider*>(provider)->name());
     for (const auto& config_proto : protos_info.value().config_protos_) {
@@ -257,7 +288,7 @@ ConfigProviderPtr ScopedRoutesConfigProviderManager::createXdsConfigProvider(
 }
 
 ConfigProviderPtr ScopedRoutesConfigProviderManager::createStaticConfigProvider(
-    std::vector<std::unique_ptr<const Protobuf::Message>>&& config_protos,
+    ProtobufTypes::ConstMessagePtrVector&& config_protos,
     Server::Configuration::FactoryContext& factory_context,
     const ConfigProviderManager::OptionalArg& optarg) {
   const auto& typed_optarg = static_cast<const ScopedRoutesConfigProviderManagerOptArg&>(optarg);

@@ -7,24 +7,11 @@
 #include "envoy/config/subscription.h"
 #include "envoy/stats/scope.h"
 
-#include "common/common/logger.h"
 #include "common/config/config_provider_impl.h"
 #include "common/router/scoped_config_impl.h"
 
 namespace Envoy {
 namespace Router {
-
-// Scoped routing configuration utilities.
-class ScopedRoutesConfigProviderUtil {
-public:
-  // If enabled in the HttpConnectionManager config, returns a ConfigProvider for scoped routing
-  // configuration.
-  static Envoy::Config::ConfigProviderPtr maybeCreate(
-      const envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager&
-          config,
-      Server::Configuration::FactoryContext& factory_context, const std::string& stat_prefix,
-      Envoy::Config::ConfigProviderManager& scoped_routes_config_provider_manager);
-};
 
 class ScopedRoutesConfigProviderManager;
 
@@ -32,7 +19,7 @@ class ScopedRoutesConfigProviderManager;
 class InlineScopedRoutesConfigProvider : public Envoy::Config::ImmutableConfigProviderBase {
 public:
   InlineScopedRoutesConfigProvider(
-      std::vector<std::unique_ptr<const Protobuf::Message>>&& config_protos, std::string name,
+      ProtobufTypes::ConstMessagePtrVector&& config_protos, std::string name,
       Server::Configuration::FactoryContext& factory_context,
       ScopedRoutesConfigProviderManager& config_provider_manager,
       envoy::api::v2::core::ConfigSource rds_config_source,

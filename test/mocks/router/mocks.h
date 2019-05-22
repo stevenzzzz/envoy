@@ -22,6 +22,10 @@
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/upstream/cluster_manager.h"
 
+#include "common/stats/fake_symbol_table_impl.h"
+
+#include "test/test_common/global.h"
+
 #include "gmock/gmock.h"
 
 namespace Envoy {
@@ -189,9 +193,10 @@ public:
 class TestVirtualCluster : public VirtualCluster {
 public:
   // Router::VirtualCluster
-  const std::string& name() const override { return name_; }
+  Stats::StatName statName() const override { return stat_name_.statName(); }
 
-  std::string name_{"fake_virtual_cluster"};
+  Test::Global<Stats::FakeSymbolTableImpl> symbol_table_;
+  Stats::StatNameManagedStorage stat_name_{"fake_virtual_cluster", *symbol_table_};
 };
 
 class MockVirtualHost : public VirtualHost {
@@ -209,7 +214,14 @@ public:
   MOCK_METHOD0(retryPriority, Upstream::RetryPrioritySharedPtr());
   MOCK_METHOD0(retryHostPredicate, Upstream::RetryHostPredicateSharedPtr());
 
+  Stats::StatName statName() const override {
+    stat_name_ = std::make_unique<Stats::StatNameManagedStorage>(name(), *symbol_table_);
+    return stat_name_->statName();
+  }
+
+  mutable Test::Global<Stats::FakeSymbolTableImpl> symbol_table_;
   std::string name_{"fake_vhost"};
+  mutable std::unique_ptr<Stats::StatNameManagedStorage> stat_name_;
   testing::NiceMock<MockRateLimitPolicy> rate_limit_policy_;
   TestCorsPolicy cors_policy_;
 };
@@ -365,8 +377,8 @@ public:
 
 class MockScopedConfig : public ScopedConfig {
 public:
-  MockScopedConfig() = default;
-  ~MockScopedConfig() override = default;
+  MockScopedConfig();
+  ~MockScopedConfig();
 
   MOCK_CONST_METHOD1(getRouterConfig, ConfigConstSharedPtr(const Http::HeaderMap& headers));
 };
