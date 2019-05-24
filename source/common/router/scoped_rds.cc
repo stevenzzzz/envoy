@@ -63,9 +63,9 @@ ConfigProviderPtr create(const envoy::config::filter::network::http_connection_m
     NOT_REACHED_GCOVR_EXCL_LINE;
   }
 }
+
 } // namespace ScopedRoutesConfigProviderUtil
 
->>>>>>> 0e4d51c22b4688036883cc5d45c647c1d05bb163
 InlineScopedRoutesConfigProvider::InlineScopedRoutesConfigProvider(
     ProtobufTypes::ConstMessagePtrVector&& config_protos, std::string name,
     Server::Configuration::FactoryContext& factory_context,
