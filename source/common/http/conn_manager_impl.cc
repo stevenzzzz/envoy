@@ -586,7 +586,13 @@ void ConnectionManagerImpl::ActiveStream::decodeHeaders(HeaderMapPtr&& headers, 
   request_headers_ = std::move(headers);
   if (snapped_scoped_routes_config_ != nullptr) {
     ASSERT(snapped_route_config_ == nullptr, "Route config already latched to the active stream.");
-    snapped_route_config_ = snapped_scoped_routes_config_->getRouterConfig(*request_headers_);
+    snapped_route_config_ = snapped_scoped_routes_config_->getRouteConfig(*request_headers_);
+    if(snapped_route_config_ == nullptr) {
+      ENVOY_STREAM_LOG(debug, "can't find SRDS RouteConfig.", *this);
+      sendLocalReply(Grpc::Common::hasGrpcContentType(*request_headers_),
+                     Http::Code::ServiceUnavailable, "route config not found for scope", nullptr, is_head_request_,
+                     absl::nullopt, StreamInfo::ResponseCodeDetails::get().RouteConfigurationNotFound);
+    }
   }
 
   if (Http::Headers::get().MethodValues.Head ==

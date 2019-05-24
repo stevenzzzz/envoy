@@ -12,16 +12,18 @@
 namespace Envoy {
 namespace Router {
 
+class
+
 /**
  * TODO(AndresGuedez): implement scoped routing logic.
  *
  * Each Envoy worker is assigned an instance of this type. When config updates are received,
  * addOrUpdateRoutingScope() and removeRoutingScope() are called to update the set of scoped routes.
  *
- * ConnectionManagerImpl::refreshCachedRoute() will call getRouterConfig() to obtain the
+ * ConnectionManagerImpl::refreshCachedRoute() will call getRouteConfig() to obtain the
  * Router::ConfigConstSharedPtr to use for route selection.
  */
-class ThreadLocalScopedConfigImpl : public ScopedConfig, public ThreadLocal::ThreadLocalObject {
+class ThreadLocalScopedConfigImpl : public v, public ThreadLocal::ThreadLocalObject {
 public:
   ThreadLocalScopedConfigImpl(
       envoy::config::filter::network::http_connection_manager::v2::ScopedRoutes::ScopeKeyBuilder

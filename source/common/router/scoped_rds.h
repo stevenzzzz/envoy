@@ -15,6 +15,18 @@ namespace Router {
 
 class ScopedRoutesConfigProviderManager;
 
+// Scoped routing configuration utilities.
+class ScopedRoutesConfigProviderUtil {
+ public:
+  // If enabled in the HttpConnectionManager config, returns a ConfigProvider for scoped routing
+  // configuration.
+  static Envoy::Config::ConfigProviderPtr maybeCreate(
+      const envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager&
+      config,
+      Server::Configuration::FactoryContext& factory_context, const std::string& stat_prefix,
+      Envoy::Config::ConfigProviderManager& scoped_routes_config_provider_manager);
+};
+
 // A ConfigProvider for inline scoped routing configuration.
 class InlineScopedRoutesConfigProvider : public Envoy::Config::ImmutableConfigProviderBase {
 public:
