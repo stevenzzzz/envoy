@@ -18,31 +18,29 @@ using Envoy::Config::ConfigProviderPtr;
 
 namespace Envoy {
 namespace Router {
-
-ConfigProviderPtr ScopedRoutesConfigProviderUtil::maybeCreate(
-    const envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager&
-        config,
-    Server::Configuration::FactoryContext& factory_context, const std::string& stat_prefix,
-    ConfigProviderManager& scoped_routes_config_provider_manager) {
-  if (config.route_specifier_case() != envoy::config::filter::network::http_connection_manager::v2::
-                                           HttpConnectionManager::kScopedRoutes) {
-    return nullptr;
-  }
-
+namespace ScopedRoutesConfigProviderUtil {
+ConfigProviderPtr create(const envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager&
+           config,
+       Server::Configuration::FactoryContext& factory_context, const std::string& stat_prefix,
+       ConfigProviderManager& scoped_routes_config_provider_manager) {
+  ASSERT(config.route_specifier_case() == envoy::config::filter::network::http_connection_manager::
+                                              v2::HttpConnectionManager::kScopedRoutes);
   switch (config.scoped_routes().config_specifier_case()) {
   case envoy::config::filter::network::http_connection_manager::v2::ScopedRoutes::
       kScopedRouteConfigurationsList: {
     const envoy::config::filter::network::http_connection_manager::v2::
         ScopedRouteConfigurationsList& scoped_route_list =
             config.scoped_routes().scoped_route_configurations_list();
-    std::vector<std::unique_ptr<const Protobuf::Message>> config_protos(
-        scoped_route_list.scoped_route_configurations().size());
-    for (const auto& it : scoped_route_list.scoped_route_configurations()) {
-      Protobuf::Message* clone = it.New();
-      clone->CopyFrom(it);
-      config_protos.push_back(std::unique_ptr<const Protobuf::Message>(clone));
-    }
-
+    ProtobufTypes::ConstMessagePtrVector config_protos;
+    std::transform(scoped_route_list.scoped_route_configurations().begin(),
+                   scoped_route_list.scoped_route_configurations().end(),
+                   std::back_inserter(config_protos),
+                   [](const envoy::api::v2::ScopedRouteConfiguration& scoped_route_config)
+                       -> std::unique_ptr<const Protobuf::Message> {
+                     Protobuf::Message* clone = scoped_route_config.New();
+                     clone->MergeFrom(scoped_route_config);
+                     return std::unique_ptr<const Protobuf::Message>(clone);
+                   });
     return scoped_routes_config_provider_manager.createStaticConfigProvider(
         std::move(config_protos), factory_context,
         ScopedRoutesConfigProviderManagerOptArg(config.scoped_routes().name(),
@@ -65,7 +63,9 @@ ConfigProviderPtr ScopedRoutesConfigProviderUtil::maybeCreate(
     NOT_REACHED_GCOVR_EXCL_LINE;
   }
 }
+} // namespace ScopedRoutesConfigProviderUtil
 
+>>>>>>> 0e4d51c22b4688036883cc5d45c647c1d05bb163
 InlineScopedRoutesConfigProvider::InlineScopedRoutesConfigProvider(
     ProtobufTypes::ConstMessagePtrVector&& config_protos, std::string name,
     Server::Configuration::FactoryContext& factory_context,
@@ -242,7 +242,7 @@ ConfigProviderPtr ScopedRoutesConfigProviderManager::createStaticConfigProvider(
     Server::Configuration::FactoryContext& factory_context,
     const ConfigProviderManager::OptionalArg& optarg) {
   const auto& typed_optarg = static_cast<const ScopedRoutesConfigProviderManagerOptArg&>(optarg);
-  return absl::make_unique<InlineScopedRoutesConfigProvider>(
+  return std::make_unique<InlineScopedRoutesConfigProvider>(
       std::move(config_protos), typed_optarg.scoped_routes_name_, factory_context, *this,
       typed_optarg.rds_config_source_, typed_optarg.scope_key_builder_);
 }

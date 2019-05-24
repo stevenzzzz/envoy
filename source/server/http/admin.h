@@ -181,8 +181,7 @@ private:
     std::string getConfigVersion() const override { return ""; }
     ConfigConstSharedPtr getConfig() const override { return config_; }
     ApiType apiType() const override { return ApiType::Full; }
-    Envoy::Config::ConfigProvider::ConfigProtoVector getConfigProtos() const override { return {}; }
-
+    ConfigProtoVector getConfigProtos() const override { return {}; }
     Router::ScopedConfigConstSharedPtr config_;
     TimeSource& time_source_;
   };
