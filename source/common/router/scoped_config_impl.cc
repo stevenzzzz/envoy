@@ -56,6 +56,8 @@ const ScopeKey ScopeKeyBuilderImpl::computeScopeKey(const Http::HeaderMap& heade
      return key;
 }
 
+Router::ConfigConstSharedPtr ScopedConfigImpl::getRouteConfig(const Http::HeaderMap& headers) const override;
+
 void ThreadLocalScopedConfigImpl::addOrUpdateRoutingScope(const ScopedRouteInfoConstSharedPtr&) {}
 
 void ThreadLocalScopedConfigImpl::removeRoutingScope(const std::string&) {}

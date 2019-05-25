@@ -99,13 +99,20 @@ class ScopeKeyBuilderImpl: public ScopeKeyBuilderBase {
 
 class ScopedConfigImpl : public ScopedConfig{
  public:
-  explicit ScopedConfigImpl(ScopedRoutes scoped_routes_config):scoped_routes_config_(std::move(scoped_routes_config)){}
+  explicit ScopedConfigImpl(ScopedRoutes::ScopeKeyBuilder config):scope_key_builder_(config){}
 
   // Envoy::Router::ScopedConfig
   Router::ConfigConstSharedPtr getRouteConfig(const Http::HeaderMap& headers) const override;
+
+  void addOrUpdateRoutingScope(const ScopedRouteInfoConstSharedPtr& scoped_route_info);
+  void removeRoutingScope(const std::string& scope_name);
+
  private:
-  const ScopedRoutes scoped_routes_config_;
+  ScopeKeyBuilderImpl scope_key_builder_;
+  absl::flat_hash_map<std::string, RouteConfiguration> scoped_route_config;
 };
+
+typedef const std::shared_ptr<ScopedConfigImpl> ScopedConfigImplConstSharedPtr;
 
 /**
  * TODO(AndresGuedez): implement scoped routing logic.
@@ -118,20 +125,15 @@ class ScopedConfigImpl : public ScopedConfig{
  */
 class ThreadLocalScopedConfigImpl : public ScopedConfig, public ThreadLocal::ThreadLocalObject {
 public:
-  ThreadLocalScopedConfigImpl(
-      ScopedRoutes::ScopeKeyBuilder
-          scope_key_builder)
-      : scope_key_builder_(std::move(scope_key_builder)) {}
+  ThreadLocalScopedConfigImpl(ScopedConfigImplConstSharedPtr config):config_(std::move(config)){}
 
-  void addOrUpdateRoutingScope(const ScopedRouteInfoConstSharedPtr& scoped_route_info);
-  void removeRoutingScope(const std::string& scope_name);
-
-  // Envoy::Router::ScopedConfig
-  Router::ConfigConstSharedPtr getRouteConfig(const Http::HeaderMap& headers) const override;
+// Envoy::Router::ScopedConfig
+  Router::ConfigConstSharedPtr getRouteConfig(const Http::HeaderMap& headers) const override{
+    return config_->getRouteConfig(headers);
+  }
 
 private:
-  const ScopedRoutes::ScopeKeyBuilder
-      scope_key_builder_;
+  ScopedConfigImplConstSharedPtr config_;
 };
 
 /**

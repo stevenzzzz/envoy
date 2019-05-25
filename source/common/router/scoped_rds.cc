@@ -166,8 +166,9 @@ ScopedRdsConfigProvider::ScopedRdsConfigProvider(
     : DeltaMutableConfigProviderBase(std::move(subscription), factory_context,
                                      ConfigProvider::ApiType::Delta),
       rds_config_source_(std::move(rds_config_source)) {
-  initialize([scope_key_builder](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
-    return std::make_shared<ThreadLocalScopedConfigImpl>(scope_key_builder);
+  auto scoped_config_impl = std::make_shared<ScopedConfigImpl>(scope_key_builder);
+  initialize([scoped_config_impl](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
+    return std::make_shared<ThreadLocalScopedConfigImpl>(scoped_config_impl);
   });
 }
 
