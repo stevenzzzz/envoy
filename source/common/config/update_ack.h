@@ -9,9 +9,7 @@ namespace Envoy {
 namespace Config {
 
 struct UpdateAck {
-  UpdateAck(absl::string_view nonce, absl::string_view type_url)
-      : nonce_(nonce), type_url_(type_url) {}
-  const std::string nonce_;
+  UpdateAck(absl::string_view type_url) : type_url_(type_url) {}
   const std::string type_url_;
   ::google::rpc::Status error_detail_;
 };

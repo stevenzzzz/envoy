@@ -53,6 +53,8 @@ public:
   DeltaSubscriptionState(const DeltaSubscriptionState&) = delete;
   DeltaSubscriptionState& operator=(const DeltaSubscriptionState&) = delete;
 
+  const absl::optional<std::string>& response_nonce() const { return response_nonce_; }
+
 private:
   bool isHeartbeatResponse(const envoy::service::discovery::v3::Resource& resource) const;
   void handleGoodResponse(const envoy::service::discovery::v3::DeltaDiscoveryResponse& message);
@@ -116,6 +118,9 @@ private:
   // Feel free to change to an unordered container once we figure out how to make it work.
   std::set<std::string> names_added_;
   std::set<std::string> names_removed_;
+
+  // Most recent response nonce received.
+  absl::optional<std::string> response_nonce_;
 };
 
 } // namespace Config

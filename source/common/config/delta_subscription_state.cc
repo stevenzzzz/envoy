@@ -66,7 +66,8 @@ UpdateAck DeltaSubscriptionState::handleResponse(
     const envoy::service::discovery::v3::DeltaDiscoveryResponse& message) {
   // We *always* copy the response's nonce into the next request, even if we're going to make that
   // request a NACK by setting error_detail.
-  UpdateAck ack(message.nonce(), type_url_);
+  UpdateAck ack(type_url_);
+  response_nonce_ = message.nonce();
   try {
     handleGoodResponse(message);
   } catch (const EnvoyException& e) {
@@ -191,6 +192,9 @@ DeltaSubscriptionState::getNextRequestAckless() {
   names_removed_.clear();
 
   request.set_type_url(type_url_);
+  if (response_nonce_.has_value()) {
+    request.set_response_nonce(*response_nonce_);
+  }
   request.mutable_node()->MergeFrom(local_info_.node());
   return request;
 }
@@ -198,7 +202,6 @@ DeltaSubscriptionState::getNextRequestAckless() {
 envoy::service::discovery::v3::DeltaDiscoveryRequest
 DeltaSubscriptionState::getNextRequestWithAck(const UpdateAck& ack) {
   envoy::service::discovery::v3::DeltaDiscoveryRequest request = getNextRequestAckless();
-  request.set_response_nonce(ack.nonce_);
   if (ack.error_detail_.code() != Grpc::Status::WellKnownGrpcStatus::Ok) {
     // Don't needlessly make the field present-but-empty if status is ok.
     request.mutable_error_detail()->CopyFrom(ack.error_detail_);

@@ -197,7 +197,6 @@ TEST_F(DeltaSubscriptionStateTest, AckGenerated) {
         populateRepeatedResource({{"name1", "version1A"}, {"name2", "version2A"}});
     EXPECT_CALL(*timer_, disableTimer());
     UpdateAck ack = deliverDiscoveryResponse(added_resources, {}, "debug1", "nonce1");
-    EXPECT_EQ("nonce1", ack.nonce_);
     EXPECT_EQ(Grpc::Status::WellKnownGrpcStatus::Ok, ack.error_detail_.code());
   }
   // The next response updates 1 and 2, and adds 3.
@@ -207,7 +206,8 @@ TEST_F(DeltaSubscriptionStateTest, AckGenerated) {
             {{"name1", "version1B"}, {"name2", "version2B"}, {"name3", "version3A"}});
     EXPECT_CALL(*timer_, disableTimer());
     UpdateAck ack = deliverDiscoveryResponse(added_resources, {}, "debug2", "nonce2");
-    EXPECT_EQ("nonce2", ack.nonce_);
+    ASSERT_TRUE(state_.response_nonce().has_value());
+    EXPECT_EQ("nonce2", *state_.response_nonce());
     EXPECT_EQ(Grpc::Status::WellKnownGrpcStatus::Ok, ack.error_detail_.code());
   }
   // The next response tries but fails to update all 3, and so should produce a NACK.
@@ -217,7 +217,8 @@ TEST_F(DeltaSubscriptionStateTest, AckGenerated) {
             {{"name1", "version1C"}, {"name2", "version2C"}, {"name3", "version3B"}});
     EXPECT_CALL(*timer_, disableTimer());
     UpdateAck ack = deliverBadDiscoveryResponse(added_resources, {}, "debug3", "nonce3", "oh no");
-    EXPECT_EQ("nonce3", ack.nonce_);
+    ASSERT_TRUE(state_.response_nonce().has_value());
+    EXPECT_EQ("nonce3", *state_.response_nonce());
     EXPECT_NE(Grpc::Status::WellKnownGrpcStatus::Ok, ack.error_detail_.code());
   }
   // The last response successfully updates all 3.
@@ -227,7 +228,8 @@ TEST_F(DeltaSubscriptionStateTest, AckGenerated) {
             {{"name1", "version1D"}, {"name2", "version2D"}, {"name3", "version3C"}});
     EXPECT_CALL(*timer_, disableTimer());
     UpdateAck ack = deliverDiscoveryResponse(added_resources, {}, "debug4", "nonce4");
-    EXPECT_EQ("nonce4", ack.nonce_);
+    ASSERT_TRUE(state_.response_nonce().has_value());
+    EXPECT_EQ("nonce4", *state_.response_nonce());
     EXPECT_EQ(Grpc::Status::WellKnownGrpcStatus::Ok, ack.error_detail_.code());
   }
   // Bad response error detail is truncated if it's too large.
@@ -239,7 +241,8 @@ TEST_F(DeltaSubscriptionStateTest, AckGenerated) {
     EXPECT_CALL(*timer_, disableTimer());
     UpdateAck ack = deliverBadDiscoveryResponse(added_resources, {}, "debug5", "nonce5",
                                                 very_large_error_message);
-    EXPECT_EQ("nonce5", ack.nonce_);
+    ASSERT_TRUE(state_.response_nonce().has_value());
+    EXPECT_EQ("nonce5", *state_.response_nonce());
     EXPECT_NE(Grpc::Status::WellKnownGrpcStatus::Ok, ack.error_detail_.code());
     EXPECT_TRUE(absl::EndsWith(ack.error_detail_.message(), "AAAAAAA...(truncated)"));
     EXPECT_LT(ack.error_detail_.message().length(), very_large_error_message.length());
@@ -517,6 +520,8 @@ TEST_F(VhdsDeltaSubscriptionStateTest, ResourceTTL) {
   // Heartbeat update should not be propagated to the subscription callback.
   EXPECT_CALL(*timer_, enabled());
   deliverDiscoveryResponse(create_resource_with_ttl(false), {}, "debug1", "nonce1", true, 0);
+  ASSERT_TRUE(state_.response_nonce().has_value());
+  EXPECT_EQ("nonce1", *state_.response_nonce());
 
   // When runtime flag is disabled, maintain old behavior where we do propagate
   // the update to the subscription callback.
@@ -525,6 +530,8 @@ TEST_F(VhdsDeltaSubscriptionStateTest, ResourceTTL) {
 
   EXPECT_CALL(*timer_, enabled());
   deliverDiscoveryResponse(create_resource_with_ttl(false), {}, "debug1", "nonce1", true, 1);
+  ASSERT_TRUE(state_.response_nonce().has_value());
+  EXPECT_EQ("nonce1", *state_.response_nonce());
 }
 
 } // namespace
