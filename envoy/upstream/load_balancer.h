@@ -226,7 +226,7 @@ public:
    * @return ThreadAwareLoadBalancerPtr a new thread-aware load balancer.
    */
   virtual ThreadAwareLoadBalancerPtr
-  create(const PrioritySet& priority_set, ClusterStats& stats, Stats::Scope& stats_scope,
+  create(const PrioritySet& priority_set, ClusterLbStats& lb_stats, Stats::Scope& stats_scope,
          Runtime::Loader& runtime, Random::RandomGenerator& random,
          const ::envoy::config::cluster::v3::LoadBalancingPolicy_Policy& lb_policy) PURE;
 

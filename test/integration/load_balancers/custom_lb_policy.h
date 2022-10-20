@@ -63,7 +63,7 @@ public:
   }
 
   Upstream::ThreadAwareLoadBalancerPtr
-  create(const Upstream::PrioritySet&, Upstream::ClusterStats&, Stats::Scope&, Runtime::Loader&,
+  create(const Upstream::PrioritySet&, Upstream::ClusterLbStats&, Stats::Scope&, Runtime::Loader&,
          Random::RandomGenerator&,
          const ::envoy::config::cluster::v3::LoadBalancingPolicy_Policy&) override {
     return std::make_unique<ThreadAwareLbImpl>();
