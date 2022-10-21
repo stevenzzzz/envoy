@@ -71,7 +71,7 @@ TEST(DISABLED_LeastRequestLoadBalancerWeightTest, Weight) {
 
   Stats::IsolatedStoreImpl stats_store;
   ClusterLbStatNames stat_names(stats_store.symbolTable());
-  ClusterLbStats stats{stat_names,stats_store};
+  ClusterLbStats stats{stat_names, stats_store};
   NiceMock<Runtime::MockLoader> runtime;
   auto time_source = std::make_unique<NiceMock<MockTimeSystem>>();
   Random::RandomGeneratorImpl random;
@@ -107,8 +107,7 @@ TEST(DISABLED_LeastRequestLoadBalancerWeightTest, Weight) {
 class DISABLED_SimulationTest : public testing::Test {
 public:
   DISABLED_SimulationTest()
-      : stat_names_(stats_store_.symbolTable()),
-        stats_(stat_names_,stats_store_) {
+      : stat_names_(stats_store_.symbolTable()), stats_(stat_names_, stats_store_) {
     ON_CALL(runtime_.snapshot_, getInteger("upstream.healthy_panic_threshold", 50U))
         .WillByDefault(Return(50U));
     ON_CALL(runtime_.snapshot_, featureEnabled("upstream.zone_routing.enabled", 100))

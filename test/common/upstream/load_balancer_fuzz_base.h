@@ -21,8 +21,7 @@ namespace Upstream {
 class LoadBalancerFuzzBase {
 public:
   LoadBalancerFuzzBase()
-      : lb_stat_names_(stats_store_.symbolTable()),
-        lb_stats_(lb_stat_names_, stats_store_ ){};
+      : lb_stat_names_(stats_store_.symbolTable()), lb_stats_(lb_stat_names_, stats_store_){};
 
   // Initializes load balancer components shared amongst every load balancer, random_, and
   // priority_set_

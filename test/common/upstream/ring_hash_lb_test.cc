@@ -58,8 +58,7 @@ class RingHashLoadBalancerTest : public Event::TestUsingSimulatedTime,
                                  public testing::TestWithParam<bool> {
 public:
   RingHashLoadBalancerTest()
-      : lb_stat_names_(stats_store_.symbolTable()),
-        lb_stats_( lb_stat_names_,stats_store_) {}
+      : lb_stat_names_(stats_store_.symbolTable()), lb_stats_(lb_stat_names_, stats_store_) {}
 
   void init() {
     lb_ = std::make_unique<RingHashLoadBalancer>(priority_set_, lb_stats_, stats_store_, runtime_,

@@ -904,9 +904,9 @@ ClusterManagerImpl::loadCluster(const envoy::config::cluster::v3::Cluster& clust
     const auto& policy = cluster_reference.info()->loadBalancingPolicy();
     TypedLoadBalancerFactory* typed_lb_factory = cluster_reference.info()->loadBalancerFactory();
     RELEASE_ASSERT(typed_lb_factory != nullptr, "ClusterInfo should contain a valid factory");
-    cluster_entry_it->second->thread_aware_lb_ =
-        typed_lb_factory->create(cluster_reference.prioritySet(), cluster_reference.info()->lbStats(),
-                                 cluster_reference.info()->statsScope(), runtime_, random_, policy);
+    cluster_entry_it->second->thread_aware_lb_ = typed_lb_factory->create(
+        cluster_reference.prioritySet(), cluster_reference.info()->lbStats(),
+        cluster_reference.info()->statsScope(), runtime_, random_, policy);
   }
 
   updateClusterCounts();
