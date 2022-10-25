@@ -70,8 +70,11 @@ namespace Envoy {
 
 // Fully-qualified for use in external callsites.
 #define GENERATE_COUNTER_STRUCT(NAME) Envoy::Stats::Counter& NAME##_;
+
 #define GENERATE_GAUGE_STRUCT(NAME, MODE) Envoy::Stats::Gauge& NAME##_;
+
 #define GENERATE_HISTOGRAM_STRUCT(NAME, UNIT) Envoy::Stats::Histogram& NAME##_;
+
 #define GENERATE_TEXT_READOUT_STRUCT(NAME) Envoy::Stats::TextReadout& NAME##_;
 
 #define FINISH_STAT_DECL_(X) #X)),
@@ -163,5 +166,110 @@ static inline std::string statPrefixJoin(absl::string_view prefix, absl::string_
     ALL_STATS(GENERATE_COUNTER_STRUCT, GENERATE_GAUGE_STRUCT, GENERATE_HISTOGRAM_STRUCT,           \
               GENERATE_TEXT_READOUT_STRUCT, GENERATE_STATNAME_STRUCT)                              \
   }
+
+// Fully-qualified for use in external callsites.
+#define GENERATE_COUNTER_MEMBER_INTERFACE(NAME) virtual Envoy::Stats::Counter& NAME() = 0;
+
+#define GENERATE_GAUGE_MEMBER_INTERFACE(NAME, MODE) virtual Envoy::Stats::Gauge& NAME() = 0;
+
+#define GENERATE_HISTOGRAM_MEMBER_INTERFACE(NAME, UNIT) virtual Envoy::Stats::Histogram& NAME() = 0;
+
+#define GENERATE_TEXT_READOUT_MEMBER_INTERFACE(NAME) virtual Envoy::Stats::TextReadout& NAME() = 0;
+
+// Generate field as well as the accessor method.
+#define GENERATE_COUNTER_FIELD_WITH_ACCESS_METHOD(NAME)                                            \
+  Envoy::Stats::Counter& NAME##_;                                                                  \
+  Envoy::Stats::Counter& NAME() override { return NAME##_; }
+
+#define GENERATE_GAUGE_FIELD_WITH_ACCESS_METHOD(NAME, MODE)                                        \
+  Envoy::Stats::Gauge& NAME##_;                                                                    \
+  Envoy::Stats::Gauge& NAME() override { return NAME##_; }
+
+#define GENERATE_HISTOGRAM_FIELD_WITH_ACCESS_METHOD(NAME, UNIT)                                    \
+  Envoy::Stats::Histogram& NAME##_;                                                                \
+  Envoy::Stats::Histogram& NAME() override { return NAME##_; }
+
+#define GENERATE_TEXT_READOUT_FIELD_WITH_ACCESS_METHOD(NAME)                                       \
+  Envoy::Stats::TextReadout& NAME##_;                                                              \
+  Envoy::Stats::TextReadout& NAME() override { return NAME##_; }
+
+/**
+ * Defines an interface that the actual stats structuree should inherit from. The interface
+ * definition allows user to pick stats implementation.
+ */
+#define MAKE_STATS_INTERFACE(StatsInterface, ALL_STATS)                                            \
+  struct StatsInterface {                                                                          \
+    ALL_STATS(GENERATE_COUNTER_MEMBER_INTERFACE, GENERATE_GAUGE_MEMBER_INTERFACE,                  \
+              GENERATE_HISTOGRAM_MEMBER_INTERFACE, GENERATE_TEXT_READOUT_MEMBER_INTERFACE,         \
+              GENERATE_STATNAME_STRUCT)                                                            \
+    virtual ~StatsInterface() {}                                                                   \
+  }
+
+#define MAKE_STATS_STRUCT_WITH_INTERFACE(StatsStruct, StatNamesStruct, ALL_STATS)                  \
+  /*Make a Interface first */                                                                      \
+  MAKE_STATS_INTERFACE(StatsStruct##Interface, ALL_STATS);                                         \
+                                                                                                   \
+  struct StatsStruct : public StatsStruct##Interface {                                             \
+    StatsStruct(const StatNamesStruct& stat_names, Envoy::Stats::Scope& scope,                     \
+                Envoy::Stats::StatName prefix = Envoy::Stats::StatName())                          \
+        : stat_names_(stat_names)                                                                  \
+              ALL_STATS(MAKE_STATS_STRUCT_COUNTER_HELPER_, MAKE_STATS_STRUCT_GAUGE_HELPER_,        \
+                        MAKE_STATS_STRUCT_HISTOGRAM_HELPER_,                                       \
+                        MAKE_STATS_STRUCT_TEXT_READOUT_HELPER_,                                    \
+                        MAKE_STATS_STRUCT_STATNAME_HELPER_) {}                                     \
+    virtual ~StatsStruct() {}                                                                      \
+    const StatNamesStruct& stat_names_;                                                            \
+    ALL_STATS(GENERATE_COUNTER_FIELD_WITH_ACCESS_METHOD, GENERATE_GAUGE_FIELD_WITH_ACCESS_METHOD,  \
+              GENERATE_HISTOGRAM_FIELD_WITH_ACCESS_METHOD,                                         \
+              GENERATE_TEXT_READOUT_FIELD_WITH_ACCESS_METHOD, GENERATE_STATNAME_STRUCT)            \
+  }
+/**
+ * @brief This helps the LazyInitStats structure to only create the structure on modifying the
+ * counter-field.
+ */
+#define LAZY_INIT_COUNTER_HELPER(NAME)                                                             \
+  inline Stats::Counter& NAME() override { return getOrCreate().NAME##_; }
+
+#define LAZY_INIT_GAUGE_HELPER(NAME, MODE)                                                         \
+  inline Stats::Gauge& NAME() override { return getOrCreate().NAME##_; }
+
+#define LAZY_INIT_TEXTREADOUT_HELPER(NAME)                                                         \
+  inline Stats::TextReadout& NAME() override { return getOrCreate().NAME##_; }
+
+#define LAZY_INIT_HISTOGRAM_HELPER(NAME, UNIT)                                                     \
+  inline Stats::Histogram& NAME() override { return getOrCreate().NAME##_; }
+
+/**
+ * Instantiates a structure of stats based on a new scope and optional prefix,
+ * using a predefined structure of stat names. A reference to the stat_names is
+ * also stored in the structure, for two reasons: (a) as a syntactic convenience
+ * for using macros to generate the comma separators for the initializer and (b)
+ * as a convenience at the call-site to access STATNAME-declared names from the
+ * stats structure.
+ */
+#define MAKE_LAZY_INIT_STATS_STRUCT(StatsStruct, StatNamesStruct, ALL_STATS)                       \
+  struct LazyInit##StatsStruct : public StatsStruct##Interface {                                   \
+    LazyInit##StatsStruct(Stats::Scope& scope, const StatNamesStruct& stat_names)                  \
+        : scope_(scope), stats_names_(stat_names) {}                                               \
+                                                                                                   \
+    StatsStruct& getOrCreate() {                                                                   \
+      if (auto* stats = internal_stats_.load(); stats == nullptr) {                                \
+        absl::MutexLock l(&m_);                                                                    \
+        if (internal_stats_.load() == nullptr) {                                                   \
+          internal_stats_ = new StatsStruct(stats_names_, scope_, {});                             \
+        }                                                                                          \
+      }                                                                                            \
+      return *internal_stats_.load();                                                              \
+    }                                                                                              \
+    virtual ~LazyInit##StatsStruct() {}                                                            \
+                                                                                                   \
+    ALL_STATS(LAZY_INIT_COUNTER_HELPER, LAZY_INIT_GAUGE_HELPER, LAZY_INIT_HISTOGRAM_HELPER,        \
+              LAZY_INIT_TEXTREADOUT_HELPER, GENERATE_STATNAME_STRUCT)                              \
+                                                                                                   \
+    Stats::Scope& scope_;                                                                          \
+    const StatNamesStruct& stats_names_;                                                           \
+    std::atomic<StatsStruct*> internal_stats_;                                                     \
+    absl::Mutex m_;                                                                                \
+  };
 
 } // namespace Envoy
