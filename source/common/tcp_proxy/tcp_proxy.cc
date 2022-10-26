@@ -235,12 +235,12 @@ void Filter::readDisableUpstream(bool disable) {
     read_callbacks_->upstreamHost()
         ->cluster()
         .stats()
-        .upstream_flow_control_paused_reading_total_.inc();
+        .upstream_flow_control_paused_reading_total().inc();
   } else {
     read_callbacks_->upstreamHost()
         ->cluster()
         .stats()
-        .upstream_flow_control_resumed_reading_total_.inc();
+        .upstream_flow_control_resumed_reading_total().inc();
   }
 }
 
@@ -377,7 +377,7 @@ Network::FilterStatus Filter::establishUpstreamConnection() {
   // will never be released.
   if (!cluster->resourceManager(Upstream::ResourcePriority::Default).connections().canCreate()) {
     getStreamInfo().setResponseFlag(StreamInfo::ResponseFlag::UpstreamOverflow);
-    cluster->stats().upstream_cx_overflow_.inc();
+    cluster->stats().upstream_cx_overflow().inc();
     onInitFailure(UpstreamFailureReason::ResourceLimitExceeded);
     return Network::FilterStatus::StopIteration;
   }
@@ -385,7 +385,7 @@ Network::FilterStatus Filter::establishUpstreamConnection() {
   const uint32_t max_connect_attempts = config_->maxConnectAttempts();
   if (connect_attempts_ >= max_connect_attempts) {
     getStreamInfo().setResponseFlag(StreamInfo::ResponseFlag::UpstreamRetryLimitExceeded);
-    cluster->stats().upstream_cx_connect_attempts_exceeded_.inc();
+    cluster->stats().upstream_cx_connect_attempts_exceeded().inc();
     onInitFailure(UpstreamFailureReason::ConnectFailed);
     return Network::FilterStatus::StopIteration;
   }
@@ -417,7 +417,7 @@ Network::FilterStatus Filter::establishUpstreamConnection() {
 
   if (!maybeTunnel(*thread_local_cluster)) {
     // Either cluster is unknown or there are no healthy hosts. tcpConnPool() increments
-    // cluster->stats().upstream_cx_none_healthy in the latter case.
+    // cluster->stats().upstream_cx_none()healthy in the latter case.
     getStreamInfo().setResponseFlag(StreamInfo::ResponseFlag::NoHealthyUpstream);
     onInitFailure(UpstreamFailureReason::NoHealthyUpstream);
   }

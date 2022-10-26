@@ -41,7 +41,7 @@ ActiveClient::ActiveClient(Envoy::Http::HttpConnPoolImplBase& parent,
                            Upstream::Host::CreateConnectionData& data)
     : MultiplexedActiveClientBase(parent, getMaxStreams(parent.host()->cluster()),
                                   getMaxStreams(parent.host()->cluster()),
-                                  parent.host()->cluster().stats().upstream_cx_http3_total_, data),
+                                  parent.host()->cluster().stats().upstream_cx_http3_total(), data),
       async_connect_callback_(parent_.dispatcher().createSchedulableCallback([this]() {
         if (state() != Envoy::ConnectionPool::ActiveClient::State::Connecting) {
           return;

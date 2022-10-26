@@ -1989,21 +1989,21 @@ getDnsLookupFamilyFromCluster(const envoy::config::cluster::v3::Cluster& cluster
 
 void reportUpstreamCxDestroy(const Upstream::HostDescriptionConstSharedPtr& host,
                              Network::ConnectionEvent event) {
-  host->cluster().stats().upstream_cx_destroy_.inc();
+  host->cluster().stats().upstream_cx_destroy().inc();
   if (event == Network::ConnectionEvent::RemoteClose) {
-    host->cluster().stats().upstream_cx_destroy_remote_.inc();
+    host->cluster().stats().upstream_cx_destroy_remote().inc();
   } else {
-    host->cluster().stats().upstream_cx_destroy_local_.inc();
+    host->cluster().stats().upstream_cx_destroy_local().inc();
   }
 }
 
 void reportUpstreamCxDestroyActiveRequest(const Upstream::HostDescriptionConstSharedPtr& host,
                                           Network::ConnectionEvent event) {
-  host->cluster().stats().upstream_cx_destroy_with_active_rq_.inc();
+  host->cluster().stats().upstream_cx_destroy_with_active_rq().inc();
   if (event == Network::ConnectionEvent::RemoteClose) {
-    host->cluster().stats().upstream_cx_destroy_remote_with_active_rq_.inc();
+    host->cluster().stats().upstream_cx_destroy_remote_with_active_rq().inc();
   } else {
-    host->cluster().stats().upstream_cx_destroy_local_with_active_rq_.inc();
+    host->cluster().stats().upstream_cx_destroy_local_with_active_rq().inc();
   }
 }
 
