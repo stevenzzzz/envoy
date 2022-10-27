@@ -90,13 +90,13 @@ uint64_t HystrixSink::getRollingValue(RollingWindow rolling_window) {
 
 void HystrixSink::updateRollingWindowMap(const Upstream::ClusterInfo& cluster_info,
                                          ClusterStatsCache& cluster_stats_cache) {
-  Upstream::ClusterStats& cluster_stats = cluster_info.stats();
+  Upstream::LazyInitClusterStats& cluster_stats = cluster_info.stats();
   Stats::Scope& cluster_stats_scope = cluster_info.statsScope();
 
   // Combining timeouts+retries - retries are counted  as separate requests
   // (alternative: each request including the retries counted as 1).
-  uint64_t timeouts = cluster_stats.upstream_rq_timeout_.value() +
-                      cluster_stats.upstream_rq_per_try_timeout_.value();
+  uint64_t timeouts = cluster_stats.upstream_rq_timeout().value() +
+                      cluster_stats.upstream_rq_per_try_timeout().value();
 
   pushNewValue(cluster_stats_cache.timeouts_, timeouts);
 
@@ -108,14 +108,14 @@ void HystrixSink::updateRollingWindowMap(const Upstream::ClusterInfo& cluster_in
                     cluster_stats_scope.counterFromStatName(retry_upstream_rq_5xx_).value() +
                     cluster_stats_scope.counterFromStatName(upstream_rq_4xx_).value() +
                     cluster_stats_scope.counterFromStatName(retry_upstream_rq_4xx_).value() -
-                    cluster_stats.upstream_rq_timeout_.value();
+                    cluster_stats.upstream_rq_timeout().value();
 
   pushNewValue(cluster_stats_cache.errors_, errors);
 
   uint64_t success = cluster_stats_scope.counterFromStatName(upstream_rq_2xx_).value();
   pushNewValue(cluster_stats_cache.success_, success);
 
-  uint64_t rejected = cluster_stats.upstream_rq_pending_overflow_.value();
+  uint64_t rejected = cluster_stats.upstream_rq_pending_overflow().value();
   pushNewValue(cluster_stats_cache.rejected_, rejected);
 
   // should not take from upstream_rq_total since it is updated before its components,

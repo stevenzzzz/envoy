@@ -205,8 +205,7 @@ static inline std::string statPrefixJoin(absl::string_view prefix, absl::string_
       }                                                                                            \
       return *internal_stats_.load();                                                              \
     }                                                                                              \
-    ~LazyInit##StatsStruct() {}                                                                    \
-                                                                                                   \
+    Stats::Scope& statsScope() { return scope_; }                                                  \
     ALL_STATS(LAZY_INIT_COUNTER_HELPER, LAZY_INIT_GAUGE_HELPER, LAZY_INIT_HISTOGRAM_HELPER,        \
               LAZY_INIT_TEXTREADOUT_HELPER, GENERATE_STATNAME_STRUCT)                              \
                                                                                                    \
