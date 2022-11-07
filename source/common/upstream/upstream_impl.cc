@@ -978,7 +978,12 @@ ClusterInfoImpl::ClusterInfoImpl(
       per_connection_buffer_limit_bytes_(
           PROTOBUF_GET_WRAPPED_OR_DEFAULT(config, per_connection_buffer_limit_bytes, 1024 * 1024)),
       socket_matcher_(std::move(socket_matcher)), stats_scope_(std::move(stats_scope)),
-      stats_(generateStats(*stats_scope_, factory_context.clusterManager().clusterStatNames())),
+      stats_(
+          LazyInitClusterStats(*stats_scope_, factory_context.clusterManager().clusterStatNames())),
+      config_update_stats_(factory_context.clusterManager().clusterConfigUpdateStatNames(),
+                           *stats_scope_),
+      lb_stats_(factory_context.clusterManager().clusterLbStatNames(), *stats_scope_),
+      endpoint_stats_(factory_context.clusterManager().clusterEndpointStatNames(), *stats_scope_),
       load_report_stats_store_(stats_scope_->symbolTable()),
       load_report_stats_(generateLoadReportStats(
           load_report_stats_store_, factory_context.clusterManager().clusterLoadReportStatNames())),
@@ -1323,7 +1328,7 @@ ClusterImplBase::ClusterImplBase(
   priority_update_cb_ = priority_set_.addPriorityUpdateCb(
       [this](uint32_t, const HostVector& hosts_added, const HostVector& hosts_removed) {
         if (!hosts_added.empty() || !hosts_removed.empty()) {
-          info_->stats().membership_change_.inc();
+          info_->endpointStats().membership_change_.inc();
         }
 
         uint32_t healthy_hosts = 0;
@@ -1336,10 +1341,10 @@ ClusterImplBase::ClusterImplBase(
           degraded_hosts += host_set->degradedHosts().size();
           excluded_hosts += host_set->excludedHosts().size();
         }
-        info_->stats().membership_total_.set(hosts);
-        info_->stats().membership_healthy_.set(healthy_hosts);
-        info_->stats().membership_degraded_.set(degraded_hosts);
-        info_->stats().membership_excluded_.set(excluded_hosts);
+        info_->endpointStats().membership_total_.set(hosts);
+        info_->endpointStats().membership_healthy_.set(healthy_hosts);
+        info_->endpointStats().membership_degraded_.set(degraded_hosts);
+        info_->endpointStats().membership_excluded_.set(excluded_hosts);
       });
 }
 
@@ -2030,7 +2035,7 @@ bool BaseDynamicClusterImpl::updateDynamicHostList(
 
   // At this point we've accounted for all the new hosts as well the hosts that previously
   // existed in this priority.
-  info_->stats().max_host_weight_.set(max_host_weight);
+  info_->endpointStats().max_host_weight_.set(max_host_weight);
 
   // Whatever remains in current_priority_hosts should be removed.
   if (!hosts_added_to_current_priority.empty() || !current_priority_hosts.empty()) {
@@ -2055,21 +2060,21 @@ getDnsLookupFamilyFromCluster(const envoy::config::cluster::v3::Cluster& cluster
 
 void reportUpstreamCxDestroy(const Upstream::HostDescriptionConstSharedPtr& host,
                              Network::ConnectionEvent event) {
-  host->cluster().stats().upstream_cx_destroy_.inc();
+  host->cluster().stats().upstream_cx_destroy().inc();
   if (event == Network::ConnectionEvent::RemoteClose) {
-    host->cluster().stats().upstream_cx_destroy_remote_.inc();
+    host->cluster().stats().upstream_cx_destroy_remote().inc();
   } else {
-    host->cluster().stats().upstream_cx_destroy_local_.inc();
+    host->cluster().stats().upstream_cx_destroy_local().inc();
   }
 }
 
 void reportUpstreamCxDestroyActiveRequest(const Upstream::HostDescriptionConstSharedPtr& host,
                                           Network::ConnectionEvent event) {
-  host->cluster().stats().upstream_cx_destroy_with_active_rq_.inc();
+  host->cluster().stats().upstream_cx_destroy_with_active_rq().inc();
   if (event == Network::ConnectionEvent::RemoteClose) {
-    host->cluster().stats().upstream_cx_destroy_remote_with_active_rq_.inc();
+    host->cluster().stats().upstream_cx_destroy_remote_with_active_rq().inc();
   } else {
-    host->cluster().stats().upstream_cx_destroy_local_with_active_rq_.inc();
+    host->cluster().stats().upstream_cx_destroy_local_with_active_rq().inc();
   }
 }
 

@@ -258,19 +258,19 @@ TEST_F(CodecClientTest, ProtocolError) {
   Buffer::OwnedImpl data;
   filter_->onData(data, false);
 
-  EXPECT_EQ(1U, cluster_->stats_.upstream_cx_protocol_error_.value());
+  EXPECT_EQ(1U, cluster_->stats_.upstream_cx_protocol_error().value());
 }
 
 TEST_F(CodecClientTest, 408Response) {
   initialize();
+
   EXPECT_CALL(*codec_, dispatch(_))
       .WillOnce(Return(prematureResponseError("", Code::RequestTimeout)));
   EXPECT_CALL(*connection_, close(Network::ConnectionCloseType::NoFlush));
 
   Buffer::OwnedImpl data;
   filter_->onData(data, false);
-
-  EXPECT_EQ(0U, cluster_->stats_.upstream_cx_protocol_error_.value());
+  EXPECT_EQ(0U, cluster_->stats_.upstream_cx_protocol_error().value());
 }
 
 TEST_F(CodecClientTest, PrematureResponse) {
@@ -281,7 +281,7 @@ TEST_F(CodecClientTest, PrematureResponse) {
   Buffer::OwnedImpl data;
   filter_->onData(data, false);
 
-  EXPECT_EQ(1U, cluster_->stats_.upstream_cx_protocol_error_.value());
+  EXPECT_EQ(1U, cluster_->stats_.upstream_cx_protocol_error().value());
 }
 
 TEST_F(CodecClientTest, WatermarkPassthrough) {

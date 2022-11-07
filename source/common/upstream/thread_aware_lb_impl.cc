@@ -162,7 +162,7 @@ ThreadAwareLoadBalancerBase::LoadBalancerImpl::chooseHost(LoadBalancerContext* c
           .first;
   const auto& per_priority_state = (*per_priority_state_)[priority];
   if (per_priority_state->global_panic_) {
-    stats_.lb_healthy_panic_.inc();
+    lb_stats_.lb_healthy_panic_.inc();
   }
 
   const uint32_t max_attempts = context ? context->hostSelectionRetryCount() + 1 : 1;
@@ -179,7 +179,7 @@ ThreadAwareLoadBalancerBase::LoadBalancerImpl::chooseHost(LoadBalancerContext* c
 }
 
 LoadBalancerPtr ThreadAwareLoadBalancerBase::LoadBalancerFactoryImpl::create() {
-  auto lb = std::make_unique<LoadBalancerImpl>(stats_, random_);
+  auto lb = std::make_unique<LoadBalancerImpl>(lb_stats_, random_);
 
   // We must protect current_lb_ via a RW lock since it is accessed and written to by multiple
   // threads. All complex processing has already been precalculated however.
@@ -197,7 +197,7 @@ double ThreadAwareLoadBalancerBase::BoundedLoadHashingLoadBalancer::hostOverload
   // TODO(scheler): This will not work if rq_active cluster stat is disabled, need to detect
   // and alert the user if that's the case.
 
-  const uint32_t overall_active = host.cluster().stats().upstream_rq_active_.value();
+  const uint32_t overall_active = host.cluster().stats().upstream_rq_active().value();
   const uint32_t host_active = host.stats().rq_active_.value();
 
   const uint32_t total_slots = ((overall_active + 1) * hash_balance_factor_ + 99) / 100;

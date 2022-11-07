@@ -63,9 +63,16 @@ public:
     return Envoy::ProtobufTypes::MessagePtr{new ::test::integration::custom_lb::CustomLbConfig()};
   }
 
+<<<<<<< HEAD
+  Upstream::ThreadAwareLoadBalancerPtr
+  create(const Upstream::PrioritySet&, Upstream::ClusterLbStats&, Stats::Scope&, Runtime::Loader&,
+         Random::RandomGenerator&,
+         const ::envoy::config::cluster::v3::LoadBalancingPolicy_Policy&) override {
+=======
   Upstream::ThreadAwareLoadBalancerPtr create(const Upstream::ClusterInfo&,
                                               const Upstream::PrioritySet&, Runtime::Loader&,
                                               Random::RandomGenerator&, TimeSource&) override {
+>>>>>>> main
     return std::make_unique<ThreadAwareLbImpl>();
   }
 };

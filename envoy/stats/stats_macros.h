@@ -70,8 +70,11 @@ namespace Envoy {
 
 // Fully-qualified for use in external callsites.
 #define GENERATE_COUNTER_STRUCT(NAME) Envoy::Stats::Counter& NAME##_;
+
 #define GENERATE_GAUGE_STRUCT(NAME, MODE) Envoy::Stats::Gauge& NAME##_;
+
 #define GENERATE_HISTOGRAM_STRUCT(NAME, UNIT) Envoy::Stats::Histogram& NAME##_;
+
 #define GENERATE_TEXT_READOUT_STRUCT(NAME) Envoy::Stats::TextReadout& NAME##_;
 
 #define FINISH_STAT_DECL_(X) #X)),
@@ -163,5 +166,62 @@ static inline std::string statPrefixJoin(absl::string_view prefix, absl::string_
     ALL_STATS(GENERATE_COUNTER_STRUCT, GENERATE_GAUGE_STRUCT, GENERATE_HISTOGRAM_STRUCT,           \
               GENERATE_TEXT_READOUT_STRUCT, GENERATE_STATNAME_STRUCT)                              \
   }
+
+/**
+ * @brief This helps the LazyInitStats structure to only create the structure on modifying the
+ * counter-field.
+ */
+#define LAZY_INIT_COUNTER_HELPER(NAME)                                                             \
+  inline Stats::Counter& NAME() { return getOrCreate().NAME##_; }
+
+#define LAZY_INIT_GAUGE_HELPER(NAME, MODE)                                                         \
+  inline Stats::Gauge& NAME() { return getOrCreate().NAME##_; }
+
+#define LAZY_INIT_TEXTREADOUT_HELPER(NAME)                                                         \
+  inline Stats::TextReadout& NAME() { return getOrCreate().NAME##_; }
+
+#define LAZY_INIT_HISTOGRAM_HELPER(NAME, UNIT)                                                     \
+  inline Stats::Histogram& NAME() { return getOrCreate().NAME##_; }
+
+/**
+ * Instantiates a structure of stats based on a new scope and optional prefix,
+ * using a predefined structure of stat names. A reference to the stat_names is
+ * also stored in the structure, for two reasons: (a) as a syntactic convenience
+ * for using macros to generate the comma separators for the initializer and (b)
+ * as a convenience at the call-site to access STATNAME-declared names from the
+ * stats structure.
+ */
+#define MAKE_LAZY_INIT_STATS_STRUCT(StatsStruct, StatNamesStruct, ALL_STATS)                       \
+  struct LazyInit##StatsStruct {                                                                   \
+    LazyInit##StatsStruct(Stats::Scope& scope, const StatNamesStruct& stat_names)                  \
+        : scope_(scope), stats_names_(stat_names) {}                                               \
+                                                                                                   \
+    StatsStruct& getOrCreate() {                                                                   \
+      if (auto* stats = internal_stats_.load(); stats == nullptr) {                                \
+        absl::MutexLock l(&m_);                                                                    \
+        if (internal_stats_.load() == nullptr) {                                                   \
+          ENVOY_LOG_MISC(error, "DDDD now create the structure! with scope: ...");                 \
+          Envoy::Assert::EnvoyBugStackTrace st;                                                    \
+          st.capture();                                                                            \
+          st.logStackTrace();                                                                      \
+          internal_stats_ = new StatsStruct(stats_names_, scope_, {});                             \
+        }                                                                                          \
+      }                                                                                            \
+      return *internal_stats_.load();                                                              \
+    }                                                                                              \
+    ~LazyInit##StatsStruct() {                                                                     \
+      if (auto* stats = internal_stats_.load(); stats != nullptr) {                                \
+        delete stats;                                                                              \
+      }                                                                                            \
+    }                                                                                              \
+    Stats::Scope& statsScope() { return scope_; }                                                  \
+    ALL_STATS(LAZY_INIT_COUNTER_HELPER, LAZY_INIT_GAUGE_HELPER, LAZY_INIT_HISTOGRAM_HELPER,        \
+              LAZY_INIT_TEXTREADOUT_HELPER, GENERATE_STATNAME_STRUCT)                              \
+                                                                                                   \
+    Stats::Scope& scope_;                                                                          \
+    const StatNamesStruct& stats_names_;                                                           \
+    std::atomic<StatsStruct*> internal_stats_;                                                     \
+    absl::Mutex m_;                                                                                \
+  };
 
 } // namespace Envoy

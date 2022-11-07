@@ -204,6 +204,7 @@ public:
     flags_ |= Flags::Used;
   }
   void sub(uint64_t amount) override {
+    ENVOY_BUG(child_value_ >= amount, "Got DDD XXXXX XXXX .");
     ASSERT(child_value_ >= amount);
     ASSERT(used() || amount == 0);
     child_value_ -= amount;
