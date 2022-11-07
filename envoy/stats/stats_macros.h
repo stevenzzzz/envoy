@@ -200,10 +200,19 @@ static inline std::string statPrefixJoin(absl::string_view prefix, absl::string_
       if (auto* stats = internal_stats_.load(); stats == nullptr) {                                \
         absl::MutexLock l(&m_);                                                                    \
         if (internal_stats_.load() == nullptr) {                                                   \
+          ENVOY_LOG_MISC(error, "DDDD now create the structure! with scope: ...");                 \
+          Envoy::Assert::EnvoyBugStackTrace st;                                                    \
+          st.capture();                                                                            \
+          st.logStackTrace();                                                                      \
           internal_stats_ = new StatsStruct(stats_names_, scope_, {});                             \
         }                                                                                          \
       }                                                                                            \
       return *internal_stats_.load();                                                              \
+    }                                                                                              \
+    ~LazyInit##StatsStruct() {                                                                     \
+      if (auto* stats = internal_stats_.load(); stats != nullptr) {                                \
+        delete stats;                                                                              \
+      }                                                                                            \
     }                                                                                              \
     Stats::Scope& statsScope() { return scope_; }                                                  \
     ALL_STATS(LAZY_INIT_COUNTER_HELPER, LAZY_INIT_GAUGE_HELPER, LAZY_INIT_HISTOGRAM_HELPER,        \
