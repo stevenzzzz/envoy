@@ -1075,7 +1075,7 @@ public:
   /**
    * @return ClusterTrafficStats& all traffic related stats for this cluster.
    */
-  virtual LazyInitStats<ClusterTrafficStats>& trafficStats() const PURE;
+  virtual Stats::LazyInit<ClusterTrafficStats>& trafficStats() const PURE;
 
   /**
    * @return the stats scope that contains all cluster stats. This can be used to produce dynamic

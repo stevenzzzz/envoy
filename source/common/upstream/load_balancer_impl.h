@@ -17,6 +17,7 @@
 
 #include "source/common/protobuf/utility.h"
 #include "source/common/runtime/runtime_protos.h"
+#include "source/common/stats/lazy_init.h"
 #include "source/common/upstream/edf_scheduler.h"
 
 namespace Envoy {
@@ -353,7 +354,7 @@ private:
     return absl::nullopt;
   }
 
-  LazyInitStats<ClusterZoneAwareLbStats>& stats_;
+  Stats::LazyInit<ClusterZoneAwareLbStats>& stats_;
   // The set of local Envoy instances which are load balancing across priority_set_.
   const PrioritySet* local_priority_set_;
 
@@ -401,8 +402,8 @@ class EdfLoadBalancerBase : public ZoneAwareLoadBalancerBase,
                             Logger::Loggable<Logger::Id::upstream> {
 public:
   EdfLoadBalancerBase(
-      const PrioritySet& priority_set, const PrioritySet* local_priority_set, ClusterLbStats& stats,
-      Runtime::Loader& runtime, Random::RandomGenerator& random,
+      const PrioritySet& priority_set, const PrioritySet* local_priority_set,
+      ClusterInfo& cluster_info, Runtime::Loader& runtime, Random::RandomGenerator& random,
       const envoy::config::cluster::v3::Cluster::CommonLbConfig& common_config,
       const absl::optional<envoy::config::cluster::v3::Cluster::SlowStartConfig> slow_start_cofig,
       TimeSource& time_source);

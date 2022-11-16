@@ -267,6 +267,7 @@ envoy_cc_library(
         "//source/common/common:assert_lib",
         "//source/common/protobuf:utility_lib",
         "//source/common/runtime:runtime_protos_lib",
+        "//source/common/stats:lazy_init",
         "@envoy_api//envoy/config/cluster/v3:pkg_cc_proto",
     ],
 )
@@ -571,6 +572,7 @@ envoy_cc_library(
         "//source/common/init:manager_lib",
         "//source/common/shared_pool:shared_pool_lib",
         "//source/common/stats:isolated_store_lib",
+        "//source/common/stats:lazy_init",
         "//source/common/stats:stats_lib",
         "//source/extensions/filters/network/http_connection_manager:config",
         "//source/extensions/upstreams/http:config",

@@ -55,14 +55,18 @@ MockClusterInfo::MockClusterInfo()
           envoy::config::core::v3::Http2ProtocolOptions())),
       traffic_stat_names_(stats_store_.symbolTable()),
       config_update_stats_names_(stats_store_.symbolTable()),
-      lb_stat_names_(stats_store_.symbolTable()), endpoint_stat_names_(stats_store_.symbolTable()),
+      subsets_lb_stat_names_(stats_store_.symbolTable()),
+      zoneaware_lb_stat_names_(stats_store_.symbolTable()),
+      endpoint_stat_names_(stats_store_.symbolTable()),
       cluster_load_report_stat_names_(stats_store_.symbolTable()),
       cluster_circuit_breakers_stat_names_(stats_store_.symbolTable()),
       cluster_request_response_size_stat_names_(stats_store_.symbolTable()),
       cluster_timeout_budget_stat_names_(stats_store_.symbolTable()),
       traffic_stats_(stats_store_, traffic_stat_names_),
       config_update_stats_(config_update_stats_names_, stats_store_),
-      lb_stats_(lb_stat_names_, stats_store_), endpoint_stats_(endpoint_stat_names_, stats_store_),
+      subsets_lb_stats_(stats_store_, lb_stat_names_),
+      zoneaware_lb_stats_(stats_store_, lb_stat_names_),
+      endpoint_stats_(endpoint_stat_names_, stats_store_),
       transport_socket_matcher_(new NiceMock<Upstream::MockTransportSocketMatcher>()),
       load_report_stats_(ClusterInfoImpl::generateLoadReportStats(load_report_stats_store_,
                                                                   cluster_load_report_stat_names_)),
@@ -99,9 +103,10 @@ MockClusterInfo::MockClusterInfo()
   ON_CALL(*this, maxRequestsPerConnection())
       .WillByDefault(ReturnPointee(&max_requests_per_connection_));
   ON_CALL(*this, trafficStats()).WillByDefault(ReturnRef(traffic_stats_));
-  ON_CALL(*this, lbStats()).WillByDefault(ReturnRef(lb_stats_));
+  ON_CALL(*this, subsetsLbStats()).WillByDefault(ReturnRef(subsets_lb_stats_));
+  ON_CALL(*this, zoneAwareLbStats()).WillByDefault(ReturnRef(lb_stats_));
   ON_CALL(*this, configUpdateStats()).WillByDefault(ReturnRef(config_update_stats_));
-  ON_CALL(*this, endpointStats()).WillByDefault(ReturnRef(endpoint_stats_));
+  ON_CALL(*this, endpointStats()).WillByDefault(ReturnRef(zoneaware_lb_stats_));
   ON_CALL(*this, statsScope()).WillByDefault(ReturnRef(stats_store_));
   // TODO(incfly): The following is a hack because it's not possible to directly embed
   // a mock transport socket factory matcher due to circular dependencies. Fix this up in a follow

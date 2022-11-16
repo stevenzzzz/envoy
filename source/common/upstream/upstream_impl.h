@@ -51,6 +51,7 @@
 #include "source/common/network/utility.h"
 #include "source/common/shared_pool/shared_pool.h"
 #include "source/common/stats/isolated_store_impl.h"
+#include "source/common/stats/lazy_init.h"
 #include "source/common/upstream/load_balancer_impl.h"
 #include "source/common/upstream/outlier_detection_impl.h"
 #include "source/common/upstream/resource_manager_impl.h"
@@ -710,7 +711,7 @@ public:
                   TransportSocketMatcherPtr&& socket_matcher, Stats::ScopeSharedPtr&& stats_scope,
                   bool added_via_api, Server::Configuration::TransportSocketFactoryContext&);
 
-  static LazyInitStats<ClusterTrafficStats>
+  static Stats::LazyInit<ClusterTrafficStats>
   generateStats(Stats::Scope& scope, const ClusterTrafficStatNames& cluster_stat_names);
   static ClusterLoadReportStats
   generateLoadReportStats(Stats::Scope& scope, const ClusterLoadReportStatNames& stat_names);
@@ -798,12 +799,12 @@ public:
   const std::string& observabilityName() const override { return observability_name_; }
   ResourceManager& resourceManager(ResourcePriority priority) const override;
   TransportSocketMatcher& transportSocketMatcher() const override { return *socket_matcher_; }
-  LazyInitStats<ClusterTrafficStats>& trafficStats() const override { return traffic_stats_; }
+  Stats::LazyInit<ClusterTrafficStats>& trafficStats() const override { return traffic_stats_; }
   ClusterConfigUpdateStats& configUpdateStats() const override { return config_update_stats_; }
-  LazyInitStats<ClusterSubsetsLbStats>& subsetsLbStats() const override {
+  Stats : LazyInit<ClusterSubsetsLbStats>& subsetsLbStats() const override {
     return subsets_lb_stats_;
   }
-  LazyInitStats<ClusterZoneAwareLbStats>& zoneawareLbStats() const override {
+  Stats : LazyInit<ClusterZoneAwareLbStats>& zoneawareLbStats() const override {
     return zoneaware_lb_stats_;
   }
   ClusterEndpointStats& endpointStats() const override { return endpoint_stats_; }
@@ -920,10 +921,10 @@ private:
   const uint32_t per_connection_buffer_limit_bytes_;
   TransportSocketMatcherPtr socket_matcher_;
   Stats::ScopeSharedPtr stats_scope_;
-  mutable LazyInitStats<ClusterTrafficStats> traffic_stats_;
+  mutable Stats::LazyInit<ClusterTrafficStats> traffic_stats_;
   mutable ClusterConfigUpdateStats config_update_stats_;
-  mutable LazyInitStats<ClusterSubsetsLbStats> subsets_lb_stats_;
-  mutable LazyInitStats<ClusterZoneAwareLbStats> zoneaware_lb_stats_;
+  mutable Stats : LazyInit<ClusterSubsetsLbStats> subsets_lb_stats_;
+  mutable Stats : LazyInit<ClusterZoneAwareLbStats> zoneaware_lb_stats_;
   mutable ClusterEndpointStats endpoint_stats_;
   Stats::IsolatedStoreImpl load_report_stats_store_;
   mutable ClusterLoadReportStats load_report_stats_;

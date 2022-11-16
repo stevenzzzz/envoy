@@ -112,13 +112,14 @@ public:
   bool forceCreationOfClusterTrafficStats(absl::string_view cluster_name) {
     // With https://github.com/envoyproxy/envoy/pull/23921 ClusterInfo::trafficStats is lazy init.
     // We need to trigger creation of ClusterInfo::trafficStats() by calling the * operator.
+    absl::Notification n;
+
     bool cluster_found = false;
     test_server_->server().dispatcher().post([&]() {
-      auto& cluster_ref =
+      const auto& cluster_ref =
           test_server_->server().clusterManager().clusters().getCluster(cluster_name);
       if (cluster_ref.has_value()) {
-        absl::Notification n;
-        auto& traffic_stats = *cluster_ref->get().info()->trafficStats();
+        const auto& traffic_stats = *cluster_ref->get().info()->trafficStats();
         (void)traffic_stats;
         cluster_found = true;
       }

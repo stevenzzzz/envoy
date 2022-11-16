@@ -22,6 +22,7 @@ envoy_cc_mock(
         "//source/common/http/http1:codec_stats_lib",
         "//source/common/http/http2:codec_stats_lib",
         "//source/common/network:raw_buffer_socket_lib",
+        "//source/common/stats:lazy_init",
         "//source/common/upstream:upstream_includes",
         "//source/common/upstream:upstream_lib",
         "//test/mocks/runtime:runtime_mocks",
