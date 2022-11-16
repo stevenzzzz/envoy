@@ -981,7 +981,10 @@ ClusterInfoImpl::ClusterInfoImpl(
           generateStats(*stats_scope_, factory_context.clusterManager().clusterStatNames())),
       config_update_stats_(factory_context.clusterManager().clusterConfigUpdateStatNames(),
                            *stats_scope_),
-      lb_stats_(factory_context.clusterManager().clusterLbStatNames(), *stats_scope_),
+      subsets_lb_stats_(*stats_scope_,
+                        factory_context.clusterManager().clusterSubsetsLbStatNames()),
+      zoneaware_lb_stats_(*stats_scope_,
+                          factory_context.clusterManager().clusterZoneAwareLbStatNames()),
       endpoint_stats_(factory_context.clusterManager().clusterEndpointStatNames(), *stats_scope_),
       load_report_stats_store_(stats_scope_->symbolTable()),
       load_report_stats_(generateLoadReportStats(

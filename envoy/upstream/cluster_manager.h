@@ -380,8 +380,9 @@ public:
    */
   virtual const ClusterTrafficStatNames& clusterStatNames() const PURE;
   virtual const ClusterConfigUpdateStatNames& clusterConfigUpdateStatNames() const PURE;
+  virtual const ClusterZoneAwareLbStatNames& clusterZoneAwareLbStatNames() const PURE;
   virtual const ClusterLbStatNames& clusterLbStatNames() const PURE;
-  virtual const ClusterEndpointStatNames& clusterEndpointStatNames() const PURE;
+  virtual const ClusterSubsetsLbStatNames& clusterSubsetsLbStatNames() const PURE;
   virtual const ClusterLoadReportStatNames& clusterLoadReportStatNames() const PURE;
   virtual const ClusterCircuitBreakersStatNames& clusterCircuitBreakersStatNames() const PURE;
   virtual const ClusterRequestResponseSizeStatNames&

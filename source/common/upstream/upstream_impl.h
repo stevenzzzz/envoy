@@ -800,7 +800,12 @@ public:
   TransportSocketMatcher& transportSocketMatcher() const override { return *socket_matcher_; }
   LazyInitStats<ClusterTrafficStats>& trafficStats() const override { return traffic_stats_; }
   ClusterConfigUpdateStats& configUpdateStats() const override { return config_update_stats_; }
-  ClusterLbStats& lbStats() const override { return lb_stats_; }
+  LazyInitStats<ClusterSubsetsLbStats>& subsetsLbStats() const override {
+    return subsets_lb_stats_;
+  }
+  LazyInitStats<ClusterZoneAwareLbStats>& zoneawareLbStats() const override {
+    return zoneaware_lb_stats_;
+  }
   ClusterEndpointStats& endpointStats() const override { return endpoint_stats_; }
   Stats::Scope& statsScope() const override { return *stats_scope_; }
 
@@ -917,7 +922,8 @@ private:
   Stats::ScopeSharedPtr stats_scope_;
   mutable LazyInitStats<ClusterTrafficStats> traffic_stats_;
   mutable ClusterConfigUpdateStats config_update_stats_;
-  mutable ClusterLbStats lb_stats_;
+  mutable LazyInitStats<ClusterSubsetsLbStats> subsets_lb_stats_;
+  mutable LazyInitStats<ClusterZoneAwareLbStats> zoneaware_lb_stats_;
   mutable ClusterEndpointStats endpoint_stats_;
   Stats::IsolatedStoreImpl load_report_stats_store_;
   mutable ClusterLoadReportStats load_report_stats_;

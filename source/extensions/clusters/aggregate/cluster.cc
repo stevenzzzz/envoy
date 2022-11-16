@@ -110,7 +110,8 @@ void AggregateClusterLoadBalancer::refresh(OptRef<const std::string> excluded_cl
   PriorityContextPtr priority_context = linearizePrioritySet(excluded_cluster);
   if (!priority_context->priority_set_.hostSetsPerPriority().empty()) {
     load_balancer_ = std::make_unique<LoadBalancerImpl>(
-        *priority_context, parent_info_->lbStats(), runtime_, random_, parent_info_->lbConfig());
+        *priority_context, cluster_manager_, runtime_, random_, parent_info_->lbConfig());
+    parent_info_->paren
   } else {
     load_balancer_ = nullptr;
   }

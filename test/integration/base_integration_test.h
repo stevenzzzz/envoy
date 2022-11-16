@@ -109,6 +109,25 @@ public:
   void registerPort(const std::string& key, uint32_t port);
   uint32_t lookupPort(const std::string& key);
 
+  bool forceCreationOfClusterTrafficStats(absl::string_view cluster_name) {
+    // With https://github.com/envoyproxy/envoy/pull/23921 ClusterInfo::trafficStats is lazy init.
+    // We need to trigger creation of ClusterInfo::trafficStats() by calling the * operator.
+    bool cluster_found = false;
+    test_server_->server().dispatcher().post([&]() {
+      auto& cluster_ref =
+          test_server_->server().clusterManager().clusters().getCluster(cluster_name);
+      if (cluster_ref.has_value()) {
+        absl::Notification n;
+        auto& traffic_stats = *cluster_ref->get().info()->trafficStats();
+        (void)traffic_stats;
+        cluster_found = true;
+      }
+      n.Notify();
+    });
+    n.WaitForNotification();
+    return cluster_found;
+  }
+
   // Set the endpoint's socket address to point at upstream at given index.
   void setUpstreamAddress(uint32_t upstream_index,
                           envoy::config::endpoint::v3::LbEndpoint& endpoint) const;

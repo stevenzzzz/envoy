@@ -602,24 +602,29 @@ public:
   GAUGE(membership_total, NeverImport)
 
 /**
- * All cluster loadbalancing related stats.
+ * All cluster subsetting loadbalancing related stats.
  */
-#define ALL_CLUSTER_LB_STATS(COUNTER, GAUGE, HISTOGRAM, TEXT_READOUT, STATNAME)                    \
-  COUNTER(lb_healthy_panic)                                                                        \
-  COUNTER(lb_local_cluster_not_ok)                                                                 \
-  COUNTER(lb_recalculate_zone_structures)                                                          \
+#define ALL_CLUSTER_SUBSETS_LB_STATS(COUNTER, GAUGE, HISTOGRAM, TEXT_READOUT, STATNAME)            \
   COUNTER(lb_subsets_created)                                                                      \
   COUNTER(lb_subsets_fallback)                                                                     \
   COUNTER(lb_subsets_fallback_panic)                                                               \
   COUNTER(lb_subsets_removed)                                                                      \
   COUNTER(lb_subsets_selected)                                                                     \
+  GAUGE(lb_subsets_active, Accumulate)
+
+/**
+ * All cluster zone aware loadbalancing related stats.
+ */
+#define ALL_CLUSTER_ZONE_AWARE_LB_STATS(COUNTER, GAUGE, HISTOGRAM, TEXT_READOUT, STATNAME)         \
+  COUNTER(lb_healthy_panic)                                                                        \
+  COUNTER(lb_local_cluster_not_ok)                                                                 \
+  COUNTER(lb_recalculate_zone_structures)                                                          \
   COUNTER(lb_zone_cluster_too_small)                                                               \
   COUNTER(lb_zone_no_capacity_left)                                                                \
   COUNTER(lb_zone_number_differs)                                                                  \
   COUNTER(lb_zone_routing_all_directly)                                                            \
   COUNTER(lb_zone_routing_cross_zone)                                                              \
-  COUNTER(lb_zone_routing_sampled)                                                                 \
-  GAUGE(lb_subsets_active, Accumulate)
+  COUNTER(lb_zone_routing_sampled)
 
 /**
  * All cluster stats. @see stats_macros.h
@@ -749,10 +754,17 @@ MAKE_STAT_NAMES_STRUCT(ClusterEndpointStatNames, ALL_CLUSTER_ENDPOINT_STATS);
 MAKE_STATS_STRUCT(ClusterEndpointStats, ClusterEndpointStatNames, ALL_CLUSTER_ENDPOINT_STATS);
 
 /**
- * Struct definition for cluster load balancing stats. @see stats_macros.h
+ * Struct definition for cluster subsetting load balancing stats. @see stats_macros.h
  */
-MAKE_STAT_NAMES_STRUCT(ClusterLbStatNames, ALL_CLUSTER_LB_STATS);
-MAKE_STATS_STRUCT(ClusterLbStats, ClusterLbStatNames, ALL_CLUSTER_LB_STATS);
+MAKE_STAT_NAMES_STRUCT(ClusterSubsetsLbStatNames, ALL_CLUSTER_SUBSETS_LB_STATS);
+MAKE_STATS_STRUCT(ClusterSubsetsLbStats, ClusterSubsetsLbStatNames, ALL_CLUSTER_SUBSETS_LB_STATS);
+
+/**
+ * Struct definition for cluster zone aware load balancing stats. @see stats_macros.h
+ */
+MAKE_STAT_NAMES_STRUCT(ClusterZoneAwareLbStatNames, ALL_CLUSTER_ZONE_AWARE_LB_STATS);
+MAKE_STATS_STRUCT(ClusterZoneAwareLbStats, ClusterZoneAwareLbStatNames,
+                  ALL_CLUSTER_ZONE_AWARE_LB_STATS);
 
 /**
  * Struct definition for all cluster traffic stats. @see stats_macros.h
@@ -1044,9 +1056,16 @@ public:
   virtual ClusterConfigUpdateStats& configUpdateStats() const PURE;
 
   /**
-   * @return ClusterLbStats& load-balancer-related stats for this cluster.
+   * @return LazyInitStats<ClusterSubsetsLbStats>& subsetting loadbalancer related stats for this
+   * cluster.
    */
-  virtual ClusterLbStats& lbStats() const PURE;
+  virtual LazyInitStats<ClusterSubsetsLbStats>& subsetsLbStats() const PURE;
+
+  /**
+   * @return LazyInitStats<ClusterZoneAwareLbStats>& zone-aware loadbalancer related stats for this
+   * cluster.
+   */
+  virtual LazyInitStats<ClusterZoneAwareLbStats>& zoneawareLbStats() const PURE;
 
   /**
    * @return ClusterEndpointStats& endpoint related stats for this cluster.

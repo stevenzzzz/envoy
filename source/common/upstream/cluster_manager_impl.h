@@ -332,7 +332,12 @@ public:
   const ClusterConfigUpdateStatNames& clusterConfigUpdateStatNames() const override {
     return cluster_config_update_stat_names_;
   }
-  const ClusterLbStatNames& clusterLbStatNames() const override { return cluster_lb_stat_names_; }
+  const ClusterZoneAwareLbStatNames& clusterZoneAwareLbStatNames() const override {
+    return cluster_lb_stat_names_;
+  }
+  const ClusterSubsetsLbStatNames& clusterSubsetsLbStatNames() const override {
+    return cluster_subsets_lb_stat_names_;
+  }
   const ClusterEndpointStatNames& clusterEndpointStatNames() const override {
     return cluster_endpoint_stat_names_;
   }
@@ -790,7 +795,8 @@ private:
   Router::Context& router_context_;
   ClusterTrafficStatNames cluster_stat_names_;
   ClusterConfigUpdateStatNames cluster_config_update_stat_names_;
-  ClusterLbStatNames cluster_lb_stat_names_;
+  ClusterZoneAwareLbStatNames cluster_zoneaware_lb_stat_names_;
+  ClusterSubsetsLbStatNames cluster_ubsets_lb_stat_names_;
   ClusterEndpointStatNames cluster_endpoint_stat_names_;
   ClusterLoadReportStatNames cluster_load_report_stat_names_;
   ClusterCircuitBreakersStatNames cluster_circuit_breakers_stat_names_;
