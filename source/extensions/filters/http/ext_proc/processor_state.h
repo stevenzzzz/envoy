@@ -92,8 +92,7 @@ public:
       const std::vector<std::string>& untyped_cluster_metadata_forwarding_namespaces,
       const std::vector<std::string>& typed_cluster_metadata_forwarding_namespaces,
       bool allow_content_length_header)
-      : filter_(filter),
-        allow_content_length_header_(allow_content_length_header),
+      : filter_(filter), allow_content_length_header_(allow_content_length_header),
         traffic_direction_(traffic_direction),
         untyped_forwarding_namespaces_(&untyped_forwarding_namespaces),
         typed_forwarding_namespaces_(&typed_forwarding_namespaces),
