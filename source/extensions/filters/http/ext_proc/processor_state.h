@@ -360,6 +360,12 @@ protected:
   bool send_headers_ : 1;
   // If true, the server wants to see the trailers
   bool send_trailers_ : 1;
+  // Flag to track whether Envoy already received the new timeout message.
+  // Envoy should receive at most one such message in one particular state.
+  bool new_timeout_received_{false};
+  // If true, the attributes for this processing state have already been sent.
+  bool attributes_sent_{};
+  const bool allow_content_length_header_;
 
   // The specific mode for body handling
   envoy::extensions::filters::http::ext_proc::v3::ProcessingMode_BodySendMode body_mode_;
@@ -371,9 +377,6 @@ protected:
   Http::RequestOrResponseHeaderMap* headers_ = nullptr;
   Http::HeaderMap* trailers_ = nullptr;
   Event::TimerPtr message_timer_;
-  // Flag to track whether Envoy already received the new timeout message.
-  // Envoy should receive at most one such message in one particular state.
-  bool new_timeout_received_{false};
   ChunkQueue chunk_queue_;
   absl::optional<MonotonicTime> call_start_time_ = absl::nullopt;
   const envoy::config::core::v3::TrafficDirection traffic_direction_;
@@ -383,9 +386,6 @@ protected:
   const std::vector<std::string>* untyped_receiving_namespaces_{};
   const std::vector<std::string>* untyped_cluster_metadata_forwarding_namespaces_{};
   const std::vector<std::string>* typed_cluster_metadata_forwarding_namespaces_{};
-  // If true, the attributes for this processing state have already been sent.
-  bool attributes_sent_{};
-  const bool allow_content_length_header_;
 
 private:
   virtual void clearRouteCache(const envoy::service::ext_proc::v3::CommonResponse&) {}
