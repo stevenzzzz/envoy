@@ -92,8 +92,8 @@ public:
       const std::vector<std::string>& untyped_cluster_metadata_forwarding_namespaces,
       const std::vector<std::string>& typed_cluster_metadata_forwarding_namespaces,
       bool allow_content_length_header)
-      : filter_(filter), traffic_direction_(traffic_direction),
-        allow_content_length_header_(allow_content_length_header),
+      : filter_(filter), allow_content_length_header_(allow_content_length_header),
+        traffic_direction_(traffic_direction),
         untyped_forwarding_namespaces_(&untyped_forwarding_namespaces),
         typed_forwarding_namespaces_(&typed_forwarding_namespaces),
         untyped_receiving_namespaces_(&untyped_receiving_namespaces),
@@ -362,13 +362,10 @@ protected:
   // If true, the server wants to see the headers
   bool send_headers_ : 1 = false;
   // If true, the server wants to see the trailers
-  bool send_trailers_ : 1 = false;
-  // If true, the attributes for this processing state have already been sent.
-  bool attributes_sent_ : 1 = false;
-  // Flag to track whether Envoy already received the new timeout message.
-  // Envoy should receive at most one such message in one particular state.
-  bool new_timeout_received_ : 1 = false;
-  const bool allow_content_length_header_ : 1;
+  bool send_trailers_ : 1;
+
+  // The specific mode for body handling
+  envoy::extensions::filters::http::ext_proc::v3::ProcessingMode_BodySendMode body_mode_;
 
   // The request_headers_ field is guaranteed to hold the pointer to the request
   // headers as set in decodeHeaders. This allows both decoding and encoding states
