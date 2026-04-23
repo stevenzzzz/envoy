@@ -362,10 +362,10 @@ protected:
   bool send_trailers_ : 1;
   // Flag to track whether Envoy already received the new timeout message.
   // Envoy should receive at most one such message in one particular state.
-  bool new_timeout_received_{false};
+  bool new_timeout_received_ : 1 = false;
   // If true, the attributes for this processing state have already been sent.
-  bool attributes_sent_{};
-  const bool allow_content_length_header_;
+  bool attributes_sent_ : 1 = false;
+  const bool allow_content_length_header_ : 1;
 
   // The specific mode for body handling
   envoy::extensions::filters::http::ext_proc::v3::ProcessingMode_BodySendMode body_mode_;
