@@ -647,7 +647,7 @@ private:
   handleLocalResponseHeadersContinue(const ::envoy::service::ext_proc::v3::HttpHeaders& response);
 
   Http::StreamDecoderFilterCallbacks* decoderCallbacks() const {
-    return static_cast<Http::StreamDecoderFilterCallbacks*>(filter_callbacks_);
+    return dynamic_cast<Http::StreamDecoderFilterCallbacks*>(filter_callbacks_);
   }
 
   bool local_response_started_{false};
@@ -751,7 +751,7 @@ private:
       const envoy::extensions::filters::http::ext_proc::v3::ProcessingMode& mode);
 
   Http::StreamEncoderFilterCallbacks* encoderCallbacks() const {
-    return static_cast<Http::StreamEncoderFilterCallbacks*>(filter_callbacks_);
+    return dynamic_cast<Http::StreamEncoderFilterCallbacks*>(filter_callbacks_);
   }
 
   bool local_response_streaming_{false};
