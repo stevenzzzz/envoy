@@ -357,9 +357,9 @@ protected:
   bool partial_body_processed_ : 1 = false;
 
   // If true, the server wants to see the headers
-  bool send_headers_ : 1;
+  bool send_headers_ : 1 = false;
   // If true, the server wants to see the trailers
-  bool send_trailers_ : 1;
+  bool send_trailers_ : 1 = false;
   // Flag to track whether Envoy already received the new timeout message.
   // Envoy should receive at most one such message in one particular state.
   bool new_timeout_received_ : 1 = false;
