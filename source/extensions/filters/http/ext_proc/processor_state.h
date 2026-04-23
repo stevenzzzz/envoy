@@ -526,30 +526,29 @@ public:
   DecodingProcessorState& operator=(const DecodingProcessorState&) = delete;
 
   void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) {
-    decoder_callbacks_ = &callbacks;
     filter_callbacks_ = &callbacks;
   }
 
   const Buffer::Instance* bufferedData() const override {
-    return decoder_callbacks_->decodingBuffer();
+    return decoderCallbacks()->decodingBuffer();
   }
 
   void addBufferedData(Buffer::Instance& data) const override {
-    decoder_callbacks_->addDecodedData(data, false);
+    decoderCallbacks()->addDecodedData(data, false);
   }
 
   void modifyBufferedData(std::function<void(Buffer::Instance&)> cb) const override {
-    decoder_callbacks_->modifyDecodingBuffer(cb);
+    decoderCallbacks()->modifyDecodingBuffer(cb);
   }
 
   void injectDataToFilterChain(Buffer::Instance& data, bool end_stream) override {
-    decoder_callbacks_->injectDecodedDataToFilterChain(data, end_stream);
+    decoderCallbacks()->injectDecodedDataToFilterChain(data, end_stream);
   }
 
-  uint32_t bufferLimit() const override { return decoder_callbacks_->bufferLimit(); }
+  uint32_t bufferLimit() const override { return decoderCallbacks()->bufferLimit(); }
 
   Http::HeaderMap* addTrailers() override {
-    trailers_ = &decoder_callbacks_->addDecodedTrailers();
+    trailers_ = &decoderCallbacks()->addDecodedTrailers();
     return trailers_;
   }
 
@@ -578,7 +577,7 @@ public:
   void requestWatermark() override;
   void clearWatermark() override;
 
-  Http::StreamFilterCallbacks* callbacks() const override { return decoder_callbacks_; }
+  Http::StreamFilterCallbacks* callbacks() const override { return decoderCallbacks(); }
 
   bool sendAttributes(const ExpressionManager& mgr) const override {
     return !attributes_sent_ && mgr.hasRequestExpr();
@@ -648,7 +647,10 @@ private:
   absl::Status
   handleLocalResponseHeadersContinue(const ::envoy::service::ext_proc::v3::HttpHeaders& response);
 
-  Http::StreamDecoderFilterCallbacks* decoder_callbacks_{};
+  Http::StreamDecoderFilterCallbacks* decoderCallbacks() const {
+    return static_cast<Http::StreamDecoderFilterCallbacks*>(filter_callbacks_);
+  }
+
   bool local_response_started_{false};
 };
 
@@ -672,34 +674,33 @@ public:
   EncodingProcessorState& operator=(const EncodingProcessorState&) = delete;
 
   void setEncoderFilterCallbacks(Http::StreamEncoderFilterCallbacks& callbacks) {
-    encoder_callbacks_ = &callbacks;
     filter_callbacks_ = &callbacks;
   }
 
   const Buffer::Instance* bufferedData() const override {
-    return encoder_callbacks_->encodingBuffer();
+    return encoderCallbacks()->encodingBuffer();
   }
 
   void addBufferedData(Buffer::Instance& data) const override {
-    encoder_callbacks_->addEncodedData(data, false);
+    encoderCallbacks()->addEncodedData(data, false);
   }
 
   void modifyBufferedData(std::function<void(Buffer::Instance&)> cb) const override {
-    encoder_callbacks_->modifyEncodingBuffer(cb);
+    encoderCallbacks()->modifyEncodingBuffer(cb);
   }
 
   void injectDataToFilterChain(Buffer::Instance& data, bool end_stream) override {
-    encoder_callbacks_->injectEncodedDataToFilterChain(data, end_stream);
+    encoderCallbacks()->injectEncodedDataToFilterChain(data, end_stream);
   }
 
-  uint32_t bufferLimit() const override { return encoder_callbacks_->bufferLimit(); }
+  uint32_t bufferLimit() const override { return encoderCallbacks()->bufferLimit(); }
 
   Http::HeaderMap* addTrailers() override {
-    trailers_ = &encoder_callbacks_->addEncodedTrailers();
+    trailers_ = &encoderCallbacks()->addEncodedTrailers();
     return trailers_;
   }
 
-  void continueProcessing() const override { encoder_callbacks_->continueEncoding(); }
+  void continueProcessing() const override { encoderCallbacks()->continueEncoding(); }
 
   envoy::service::ext_proc::v3::HttpHeaders*
   mutableHeaders(envoy::service::ext_proc::v3::ProcessingRequest& request) const override {
@@ -724,7 +725,7 @@ public:
   void requestWatermark() override;
   void clearWatermark() override;
 
-  Http::StreamFilterCallbacks* callbacks() const override { return encoder_callbacks_; }
+  Http::StreamFilterCallbacks* callbacks() const override { return encoderCallbacks(); }
 
   bool sendAttributes(const ExpressionManager& mgr) const override {
     return !attributes_sent_ && mgr.hasResponseExpr();
@@ -750,7 +751,10 @@ private:
   void setProcessingModeInternal(
       const envoy::extensions::filters::http::ext_proc::v3::ProcessingMode& mode);
 
-  Http::StreamEncoderFilterCallbacks* encoder_callbacks_{};
+  Http::StreamEncoderFilterCallbacks* encoderCallbacks() const {
+    return static_cast<Http::StreamEncoderFilterCallbacks*>(filter_callbacks_);
+  }
+
   bool local_response_streaming_{false};
 };
 

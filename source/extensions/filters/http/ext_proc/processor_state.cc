@@ -740,7 +740,7 @@ void DecodingProcessorState::requestWatermark() {
   if (!watermark_requested_) {
     ENVOY_STREAM_LOG(debug, "Watermark raised on decoding", *filter_callbacks_);
     watermark_requested_ = true;
-    decoder_callbacks_->onDecoderFilterAboveWriteBufferHighWatermark();
+    decoderCallbacks()->onDecoderFilterAboveWriteBufferHighWatermark();
   }
 }
 
@@ -748,7 +748,7 @@ void DecodingProcessorState::clearWatermark() {
   if (watermark_requested_) {
     ENVOY_STREAM_LOG(debug, "Watermark lowered on decoding", *filter_callbacks_);
     watermark_requested_ = false;
-    decoder_callbacks_->onDecoderFilterBelowWriteBufferLowWatermark();
+    decoderCallbacks()->onDecoderFilterBelowWriteBufferLowWatermark();
   }
 }
 
@@ -781,14 +781,14 @@ void DecodingProcessorState::clearRouteCache(const CommonResponse& common_respon
                        "Clearing route cache due to the filter RouterCacheAction is configured "
                        "with DEFAULT and response has clear_route_cache set.",
                        *filter_callbacks_);
-      decoder_callbacks_->downstreamCallbacks()->clearRouteCache();
+      decoderCallbacks()->downstreamCallbacks()->clearRouteCache();
     }
     break;
   case envoy::extensions::filters::http::ext_proc::v3::ExternalProcessor::CLEAR:
     ENVOY_STREAM_LOG(
         debug, "Clearing route cache due to the filter RouterCacheAction is configured with CLEAR",
         *filter_callbacks_);
-    decoder_callbacks_->downstreamCallbacks()->clearRouteCache();
+    decoderCallbacks()->downstreamCallbacks()->clearRouteCache();
     break;
   case envoy::extensions::filters::http::ext_proc::v3::ExternalProcessor::RETAIN:
     if (response_clear_route_cache) {
@@ -828,7 +828,7 @@ void EncodingProcessorState::requestWatermark() {
   if (!watermark_requested_) {
     ENVOY_STREAM_LOG(debug, "Watermark raised on encoding", *filter_callbacks_);
     watermark_requested_ = true;
-    encoder_callbacks_->onEncoderFilterAboveWriteBufferHighWatermark();
+    encoderCallbacks()->onEncoderFilterAboveWriteBufferHighWatermark();
   }
 }
 
@@ -836,7 +836,7 @@ void EncodingProcessorState::clearWatermark() {
   if (watermark_requested_) {
     ENVOY_STREAM_LOG(debug, "Watermark lowered on encoding", *filter_callbacks_);
     watermark_requested_ = false;
-    encoder_callbacks_->onEncoderFilterBelowWriteBufferLowWatermark();
+    encoderCallbacks()->onEncoderFilterBelowWriteBufferLowWatermark();
   }
 }
 
@@ -926,7 +926,7 @@ ProcessingResult DecodingProcessorState::startLocalResponse(
   onFinishProcessorCall(Grpc::Status::Ok, getCallbackStateAfterHeaderResp());
   filter_.onProcessStreamingImmediateResponse(response, absl::OkStatus());
 
-  decoder_callbacks_->encodeHeaders(std::move(local_response_headers), end_stream,
+  decoderCallbacks()->encodeHeaders(std::move(local_response_headers), end_stream,
                                     "ext_proc_local_response");
   return ProcessingResult{.status = handleHeaderContinue(), .processing_complete = end_stream};
 }
@@ -948,7 +948,7 @@ ProcessingResult DecodingProcessorState::processLocalBodyResponse(
   // is no buffering on the client and there is no local state to clean up (such as queue in
   // STREAMED mode). Just the encode the received local response data.
   Buffer::OwnedImpl data(response_body.body());
-  decoder_callbacks_->encodeData(data, end_stream);
+  decoderCallbacks()->encodeData(data, end_stream);
   return ProcessingResult{.status = absl::OkStatus(), .processing_complete = end_stream};
 }
 
@@ -970,7 +970,7 @@ ProcessingResult DecodingProcessorState::processLocalTrailersResponse(
     return ProcessingResult{.status = mut_status, .processing_complete = true};
   }
 
-  decoder_callbacks_->encodeTrailers(std::move(local_response_trailers));
+  decoderCallbacks()->encodeTrailers(std::move(local_response_trailers));
   return ProcessingResult{.status = absl::OkStatus(), .processing_complete = true};
 }
 
@@ -978,7 +978,7 @@ void DecodingProcessorState::continueProcessing() const {
   // If a local response was started the ext_proc becomes the terminal filter and
   // will never continue the decoder filter chain.
   if (!local_response_started_) {
-    decoder_callbacks_->continueDecoding();
+    decoderCallbacks()->continueDecoding();
   }
 }
 
