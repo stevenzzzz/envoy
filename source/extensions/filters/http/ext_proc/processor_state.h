@@ -363,6 +363,11 @@ protected:
   bool send_headers_ : 1;
   // If true, the server wants to see the trailers
   bool send_trailers_ : 1;
+  // If true, the attributes for this processing state have already been sent.
+  bool attributes_sent_ : 1;
+  // Flag to track whether Envoy already received the new timeout message.
+  // Envoy should receive at most one such message in one particular state.
+  bool new_timeout_received_ : 1;
 
   // The request_headers_ field is guaranteed to hold the pointer to the request
   // headers as set in decodeHeaders. This allows both decoding and encoding states
@@ -371,9 +376,6 @@ protected:
   Http::RequestOrResponseHeaderMap* headers_ = nullptr;
   Http::HeaderMap* trailers_ = nullptr;
   Event::TimerPtr message_timer_;
-  // Flag to track whether Envoy already received the new timeout message.
-  // Envoy should receive at most one such message in one particular state.
-  bool new_timeout_received_{false};
   ChunkQueue chunk_queue_;
   absl::optional<MonotonicTime> call_start_time_ = absl::nullopt;
 
@@ -382,8 +384,6 @@ protected:
   const std::vector<std::string>* untyped_receiving_namespaces_{};
   const std::vector<std::string>* untyped_cluster_metadata_forwarding_namespaces_{};
   const std::vector<std::string>* typed_cluster_metadata_forwarding_namespaces_{};
-  // If true, the attributes for this processing state have already been sent.
-  bool attributes_sent_{};
   const bool allow_content_length_header_;
 
 private:
