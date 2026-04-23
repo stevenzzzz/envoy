@@ -360,14 +360,15 @@ protected:
   bool partial_body_processed_ : 1 = false;
 
   // If true, the server wants to see the headers
-  bool send_headers_ : 1;
+  bool send_headers_ : 1 = false;
   // If true, the server wants to see the trailers
-  bool send_trailers_ : 1;
+  bool send_trailers_ : 1 = false;
   // If true, the attributes for this processing state have already been sent.
-  bool attributes_sent_ : 1;
+  bool attributes_sent_ : 1 = false;
   // Flag to track whether Envoy already received the new timeout message.
   // Envoy should receive at most one such message in one particular state.
-  bool new_timeout_received_ : 1;
+  bool new_timeout_received_ : 1 = false;
+  const bool allow_content_length_header_ : 1;
 
   // The request_headers_ field is guaranteed to hold the pointer to the request
   // headers as set in decodeHeaders. This allows both decoding and encoding states
@@ -384,7 +385,6 @@ protected:
   const std::vector<std::string>* untyped_receiving_namespaces_{};
   const std::vector<std::string>* untyped_cluster_metadata_forwarding_namespaces_{};
   const std::vector<std::string>* typed_cluster_metadata_forwarding_namespaces_{};
-  const bool allow_content_length_header_;
 
 private:
   virtual void clearRouteCache(const envoy::service::ext_proc::v3::CommonResponse&) {}
