@@ -335,6 +335,9 @@ protected:
   Filter& filter_;
   Http::StreamFilterCallbacks* filter_callbacks_;
   CallbackState callback_state_ = CallbackState::Idle;
+  // The specific mode for body handling
+  envoy::extensions::filters::http::ext_proc::v3::ProcessingMode_BodySendMode body_mode_;
+  const envoy::config::core::v3::TrafficDirection traffic_direction_;
 
   // Keep track of whether we requested a watermark.
   bool watermark_requested_ : 1 = false;
@@ -361,9 +364,6 @@ protected:
   // If true, the server wants to see the trailers
   bool send_trailers_ : 1;
 
-  // The specific mode for body handling
-  envoy::extensions::filters::http::ext_proc::v3::ProcessingMode_BodySendMode body_mode_;
-
   // The request_headers_ field is guaranteed to hold the pointer to the request
   // headers as set in decodeHeaders. This allows both decoding and encoding states
   // to have access to the request headers map.
@@ -376,7 +376,6 @@ protected:
   bool new_timeout_received_{false};
   ChunkQueue chunk_queue_;
   absl::optional<MonotonicTime> call_start_time_ = absl::nullopt;
-  const envoy::config::core::v3::TrafficDirection traffic_direction_;
 
   const std::vector<std::string>* untyped_forwarding_namespaces_{};
   const std::vector<std::string>* typed_forwarding_namespaces_{};
