@@ -363,11 +363,11 @@ protected:
   bool send_headers_ : 1 = false;
   // If true, the server wants to see the trailers
   bool send_trailers_ : 1 = false;
-  // If true, the attributes for this processing state have already been sent.
-  bool attributes_sent_ : 1 = false;
   // Flag to track whether Envoy already received the new timeout message.
   // Envoy should receive at most one such message in one particular state.
   bool new_timeout_received_ : 1 = false;
+  // If true, the attributes for this processing state have already been sent.
+  bool attributes_sent_ : 1 = false;
   const bool allow_content_length_header_ : 1;
 
   // The request_headers_ field is guaranteed to hold the pointer to the request
