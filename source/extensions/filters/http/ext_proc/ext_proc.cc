@@ -1632,8 +1632,8 @@ void Filter::setDynamicMetadata(Http::StreamFilterCallbacks* cb, const Processor
     return;
   }
 
-  auto response_metadata = response.dynamic_metadata().fields();
-  auto receiving_namespaces = state.untypedReceivingMetadataNamespaces();
+  const auto& response_metadata = response.dynamic_metadata().fields();
+  const auto& receiving_namespaces = state.untypedReceivingMetadataNamespaces();
   for (const auto& context_key : response_metadata) {
     bool found_allowed_namespace = false;
     if (auto metadata_it =

@@ -46,7 +46,7 @@ void ExtProcHttpClient::sendRequest(envoy::service::ext_proc::v3::ProcessingRequ
   // Transcode req message into JSON string.
   auto req_in_json = MessageUtil::getJsonStringFromMessage(req);
   if (req_in_json.ok()) {
-    const auto http_uri = config_.http_service().http_service().http_uri();
+    const envoy::config::core::v3::HttpUri& http_uri = config_.http_service().http_service().http_uri();
     Http::RequestHeaderMapPtr headers = buildHttpRequestHeaders(http_uri.uri(), stream_id);
     headers_applicator_->apply(*headers);
 
@@ -61,7 +61,7 @@ void ExtProcHttpClient::sendRequest(envoy::service::ext_proc::v3::ProcessingRequ
       active_request_ =
           thread_local_cluster->httpAsyncClient().startRequest(std::move(headers), *this, options);
       if (active_request_ != nullptr) {
-        Buffer::OwnedImpl body(req_in_json.value());
+        Buffer::OwnedImpl body(std::move(req_in_json.value()));
         active_request_->sendData(body, true);
       }
     } else {
@@ -81,7 +81,7 @@ void ExtProcHttpClient::onSuccess(const Http::AsyncClient::Request&,
       envoy::service::ext_proc::v3::ProcessingResponse response_msg;
       if (!msg_body.empty()) {
         bool has_unknown_field;
-        auto status = MessageUtil::loadFromJsonNoThrow(msg_body, response_msg, has_unknown_field);
+        const absl::Status& status = MessageUtil::loadFromJsonNoThrow(msg_body, response_msg, has_unknown_field);
         if (!status.ok()) {
           ENVOY_LOG(
               error,
