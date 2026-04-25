@@ -260,7 +260,7 @@ public:
   virtual envoy::service::ext_proc::v3::HttpTrailers*
   mutableTrailers(envoy::service::ext_proc::v3::ProcessingRequest& request) const PURE;
 
-  virtual Http::StreamFilterCallbacks* callbacks() const PURE;
+  virtual Http::StreamFilterCallbacks* filter_callbacks() const PURE;
 
   virtual bool sendAttributes(const ExpressionManager& mgr) const PURE;
 
@@ -333,7 +333,6 @@ protected:
   virtual bool isValidTrailersCallbackState() const;
 
   Filter& filter_;
-  Http::StreamFilterCallbacks* filter_callbacks_;
   CallbackState callback_state_ = CallbackState::Idle;
   // The specific mode for body handling
   envoy::extensions::filters::http::ext_proc::v3::ProcessingMode_BodySendMode body_mode_;
@@ -525,11 +524,11 @@ public:
   DecodingProcessorState& operator=(const DecodingProcessorState&) = delete;
 
   void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) {
-    filter_callbacks_ = &callbacks;
+    decoder_callbacks_ = &callbacks;
   }
 
   const Buffer::Instance* bufferedData() const override {
-    return decoderCallbacks()->decodingBuffer();
+    return decoder_callbacks_->decodingBuffer();
   }
 
   void addBufferedData(Buffer::Instance& data) const override {
@@ -576,7 +575,7 @@ public:
   void requestWatermark() override;
   void clearWatermark() override;
 
-  Http::StreamFilterCallbacks* callbacks() const override { return decoderCallbacks(); }
+  Http::StreamFilterCallbacks* filter_callbacks() const override { return decoder_callbacks_; }
 
   bool sendAttributes(const ExpressionManager& mgr) const override {
     return !attributes_sent_ && mgr.hasRequestExpr();
@@ -647,10 +646,11 @@ private:
   handleLocalResponseHeadersContinue(const ::envoy::service::ext_proc::v3::HttpHeaders& response);
 
   Http::StreamDecoderFilterCallbacks* decoderCallbacks() const {
-    return dynamic_cast<Http::StreamDecoderFilterCallbacks*>(filter_callbacks_);
+    return decoder_callbacks_;
   }
 
   bool local_response_started_{false};
+  Http::StreamDecoderFilterCallbacks* decoder_callbacks_ = nullptr;
 };
 
 class EncodingProcessorState : public ProcessorState {
@@ -673,11 +673,11 @@ public:
   EncodingProcessorState& operator=(const EncodingProcessorState&) = delete;
 
   void setEncoderFilterCallbacks(Http::StreamEncoderFilterCallbacks& callbacks) {
-    filter_callbacks_ = &callbacks;
+    encoder_callbacks_ = &callbacks;
   }
 
   const Buffer::Instance* bufferedData() const override {
-    return encoderCallbacks()->encodingBuffer();
+    return encoder_callbacks_->encodingBuffer();
   }
 
   void addBufferedData(Buffer::Instance& data) const override {
@@ -724,7 +724,7 @@ public:
   void requestWatermark() override;
   void clearWatermark() override;
 
-  Http::StreamFilterCallbacks* callbacks() const override { return encoderCallbacks(); }
+  Http::StreamFilterCallbacks* filter_callbacks() const override { return encoder_callbacks_; }
 
   bool sendAttributes(const ExpressionManager& mgr) const override {
     return !attributes_sent_ && mgr.hasResponseExpr();
@@ -751,10 +751,11 @@ private:
       const envoy::extensions::filters::http::ext_proc::v3::ProcessingMode& mode);
 
   Http::StreamEncoderFilterCallbacks* encoderCallbacks() const {
-    return dynamic_cast<Http::StreamEncoderFilterCallbacks*>(filter_callbacks_);
+    return encoder_callbacks_;
   }
 
   bool local_response_streaming_{false};
+  Http::StreamEncoderFilterCallbacks* encoder_callbacks_ = nullptr;
 };
 
 } // namespace ExternalProcessing
