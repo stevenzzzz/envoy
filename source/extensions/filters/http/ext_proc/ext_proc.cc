@@ -681,11 +681,132 @@ FilterConfigPerRoute::FilterConfigPerRoute(const FilterConfigPerRoute& less_spec
               ? more_specific.processing_request_modifier_factory_cb_
               : less_specific.processing_request_modifier_factory_cb_) {}
 
+Filter::Filter(const FilterConfigSharedPtr& config, ClientBasePtr&& client)
+    : config_(config), client_(std::move(client)), stats_(config->stats()),
+      grpc_service_(config->grpcService().has_value() ? config->grpcService().value()
+                                                      : envoy::config::core::v3::GrpcService()),
+      config_with_hash_key_(grpc_service_),
+      processing_request_modifier_(config->createProcessingRequestModifier()),
+      on_processing_response_(config->createOnProcessingResponse()),
+      failure_mode_allow_(config->failureModeAllow()) {}
+
+void Filter::ensureDecodingState() const {
+  if (!decoding_state_) {
+    const std::vector<std::string>& untyped_forwarding =
+        (merged_config_ && merged_config_->untypedForwardingMetadataNamespaces().has_value())
+            ? *merged_config_->untypedForwardingMetadataNamespaces()
+            : config_->untypedForwardingMetadataNamespaces();
+
+    const std::vector<std::string>& typed_forwarding =
+        (merged_config_ && merged_config_->typedForwardingMetadataNamespaces().has_value())
+            ? *merged_config_->typedForwardingMetadataNamespaces()
+            : config_->typedForwardingMetadataNamespaces();
+
+    const std::vector<std::string>& untyped_receiving =
+        (merged_config_ && merged_config_->untypedReceivingMetadataNamespaces().has_value())
+            ? *merged_config_->untypedReceivingMetadataNamespaces()
+            : config_->untypedReceivingMetadataNamespaces();
+
+    const std::vector<std::string>& untyped_cluster_forwarding =
+        (merged_config_ && merged_config_->untypedClusterMetadataForwardingNamespaces().has_value())
+            ? *merged_config_->untypedClusterMetadataForwardingNamespaces()
+            : config_->untypedClusterMetadataForwardingNamespaces();
+
+    const std::vector<std::string>& typed_cluster_forwarding =
+        (merged_config_ && merged_config_->typedClusterMetadataForwardingNamespaces().has_value())
+            ? *merged_config_->typedClusterMetadataForwardingNamespaces()
+            : config_->typedClusterMetadataForwardingNamespaces();
+
+    decoding_state_ = std::make_unique<DecodingProcessorState>(
+        *this, config_->processingMode(), untyped_forwarding,
+        typed_forwarding, untyped_receiving, untyped_cluster_forwarding,
+        typed_cluster_forwarding, config_->keepContentLength());
+    if (decoder_callbacks_) {
+      decoding_state_->setDecoderFilterCallbacks(*decoder_callbacks_);
+    }
+    applyConfigurations(*decoding_state_);
+  }
+}
+
+void Filter::ensureEncodingState() const {
+  if (!encoding_state_) {
+    const std::vector<std::string>& untyped_forwarding =
+        (merged_config_ && merged_config_->untypedForwardingMetadataNamespaces().has_value())
+            ? *merged_config_->untypedForwardingMetadataNamespaces()
+            : config_->untypedForwardingMetadataNamespaces();
+
+    const std::vector<std::string>& typed_forwarding =
+        (merged_config_ && merged_config_->typedForwardingMetadataNamespaces().has_value())
+            ? *merged_config_->typedForwardingMetadataNamespaces()
+            : config_->typedForwardingMetadataNamespaces();
+
+    const std::vector<std::string>& untyped_receiving =
+        (merged_config_ && merged_config_->untypedReceivingMetadataNamespaces().has_value())
+            ? *merged_config_->untypedReceivingMetadataNamespaces()
+            : config_->untypedReceivingMetadataNamespaces();
+
+    const std::vector<std::string>& untyped_cluster_forwarding =
+        (merged_config_ && merged_config_->untypedClusterMetadataForwardingNamespaces().has_value())
+            ? *merged_config_->untypedClusterMetadataForwardingNamespaces()
+            : config_->untypedClusterMetadataForwardingNamespaces();
+
+    const std::vector<std::string>& typed_cluster_forwarding =
+        (merged_config_ && merged_config_->typedClusterMetadataForwardingNamespaces().has_value())
+            ? *merged_config_->typedClusterMetadataForwardingNamespaces()
+            : config_->typedClusterMetadataForwardingNamespaces();
+
+    encoding_state_ = std::make_unique<EncodingProcessorState>(
+        *this, config_->processingMode(), untyped_forwarding,
+        typed_forwarding, untyped_receiving, untyped_cluster_forwarding,
+        typed_cluster_forwarding, config_->keepContentLength());
+    if (encoder_callbacks_) {
+      encoding_state_->setEncoderFilterCallbacks(*encoder_callbacks_);
+    }
+    if (request_headers_) {
+      encoding_state_->setRequestHeaders(request_headers_);
+    }
+    applyConfigurations(*encoding_state_);
+  }
+}
+
+void Filter::applyConfigurations(ProcessorState& state) const {
+  if (merged_config_) {
+    if (merged_config_->disabled()) {
+      state.setProcessingMode(allDisabledMode());
+    } else if (merged_config_->processingMode().has_value()) {
+      state.setProcessingMode(*(merged_config_->processingMode()));
+    }
+  }
+  if (mode_override_.has_value()) {
+    state.setProcessingMode(mode_override_.value());
+  }
+}
+
+DecodingProcessorState& Filter::decodingState() {
+  ensureDecodingState();
+  return *decoding_state_;
+}
+
+const DecodingProcessorState& Filter::decodingState() const {
+  ensureDecodingState();
+  return *decoding_state_;
+}
+
+EncodingProcessorState& Filter::encodingState() {
+  ensureEncodingState();
+  return *encoding_state_;
+}
+
+const EncodingProcessorState& Filter::encodingState() const {
+  ensureEncodingState();
+  return *encoding_state_;
+}
+
 void Filter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) {
   Http::PassThroughFilter::setDecoderFilterCallbacks(callbacks);
+  decoder_callbacks_ = &callbacks;
   filter_callbacks_ = &callbacks;
   watermark_callbacks_.setDecoderFilterCallbacks(&callbacks);
-  decoding_state_.setDecoderFilterCallbacks(callbacks);
   const Envoy::StreamInfo::FilterStateSharedPtr& filter_state =
       callbacks.streamInfo().filterState();
   if (!filter_state->hasData<ExtProcLoggingInfo>(callbacks.filterConfigName())) {
@@ -699,7 +820,7 @@ void Filter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callb
 
 void Filter::setEncoderFilterCallbacks(Http::StreamEncoderFilterCallbacks& callbacks) {
   Http::PassThroughFilter::setEncoderFilterCallbacks(callbacks);
-  encoding_state_.setEncoderFilterCallbacks(callbacks);
+  encoder_callbacks_ = &callbacks;
   watermark_callbacks_.setEncoderFilterCallbacks(&callbacks);
 }
 
@@ -853,8 +974,12 @@ void Filter::onDestroy() {
   // Make doubly-sure we no longer use the stream, as
   // per the filter contract.
   processing_complete_ = true;
-  decoding_state_.stopMessageTimer();
-  encoding_state_.stopMessageTimer();
+  if (decoding_state_) {
+    decoding_state_->stopMessageTimer();
+  }
+  if (encoding_state_) {
+    encoding_state_->stopMessageTimer();
+  }
 
   if (!config_->grpcService().has_value()) {
     client_->cancel();
@@ -909,29 +1034,32 @@ FilterHeadersStatus Filter::decodeHeaders(RequestHeaderMap& headers, bool end_st
   mergePerRouteConfig();
 
   // Send headers in observability mode.
-  if (decoding_state_.sendHeaders() && config_->observabilityMode()) {
-    return sendHeadersInObservabilityMode(headers, decoding_state_, end_stream);
+  if (decodingState().sendHeaders() && config_->observabilityMode()) {
+    return sendHeadersInObservabilityMode(headers, decodingState(), end_stream);
   }
 
   if (end_stream) {
-    decoding_state_.setCompleteBodyAvailable(true);
+    decodingState().setCompleteBodyAvailable(true);
   }
 
   // Set the request headers on decoding and encoding state in case they are
   // needed later.
-  decoding_state_.setRequestHeaders(&headers);
-  encoding_state_.setRequestHeaders(&headers);
+  request_headers_ = &headers;
+  decodingState().setRequestHeaders(&headers);
+  if (encoding_state_) {
+    encoding_state_->setRequestHeaders(&headers);
+  }
 
   FilterHeadersStatus status = FilterHeadersStatus::Continue;
-  if (decoding_state_.sendHeaders()) {
-    status = onHeaders(decoding_state_, headers, end_stream);
+  if (decodingState().sendHeaders()) {
+    status = onHeaders(decodingState(), headers, end_stream);
     ENVOY_STREAM_LOG(trace, "onHeaders returning {}", *decoder_callbacks_,
                      static_cast<int>(status));
   } else {
     ENVOY_STREAM_LOG(trace, "decodeHeaders: Skipped header processing", *decoder_callbacks_);
   }
 
-  if (!processing_complete_ && decoding_state_.shouldRemoveContentLength()) {
+  if (!processing_complete_ && decodingState().shouldRemoveContentLength()) {
     headers.removeContentLength();
   }
   return status;
@@ -1140,8 +1268,16 @@ void Filter::encodeProtocolConfig(ProcessingRequest& req) {
   ENVOY_STREAM_LOG(debug, "Trying to encode filter protocol configurations", *decoder_callbacks_);
   if (!protocol_config_encoded_ && !config_->observabilityMode()) {
     auto* protocol_config = req.mutable_protocol_config();
-    protocol_config->set_request_body_mode(decoding_state_.bodyMode());
-    protocol_config->set_response_body_mode(encoding_state_.bodyMode());
+    auto request_body_mode = decoding_state_ ? decoding_state_->bodyMode()
+                                             : config_->processingMode().request_body_mode();
+    auto response_body_mode = encoding_state_ ? encoding_state_->bodyMode()
+                                              : config_->processingMode().response_body_mode();
+    if (merged_config_ && merged_config_->processingMode().has_value()) {
+      request_body_mode = merged_config_->processingMode()->request_body_mode();
+      response_body_mode = merged_config_->processingMode()->response_body_mode();
+    }
+    protocol_config->set_request_body_mode(request_body_mode);
+    protocol_config->set_response_body_mode(response_body_mode);
     protocol_config->set_send_body_without_waiting_for_header_response(
         config_->sendBodyWithoutWaitingForHeaderResponse());
     protocol_config_encoded_ = true;
@@ -1151,10 +1287,36 @@ void Filter::encodeProtocolConfig(ProcessingRequest& req) {
 }
 
 bool Filter::failureModeAllow() const {
-  if (!decoding_state_.canFailOpen() || !encoding_state_.canFailOpen()) {
+  bool decoding_can_fail_open =
+      decoding_state_ ? decoding_state_->canFailOpen() : failure_mode_allow_;
+  bool encoding_can_fail_open =
+      encoding_state_ ? encoding_state_->canFailOpen() : failure_mode_allow_;
+  if (!decoding_can_fail_open || !encoding_can_fail_open) {
     return false;
   }
   return failure_mode_allow_;
+}
+
+bool Filter::hasExternalProcess(envoy::config::core::v3::TrafficDirection traffic_direction) const {
+  if (traffic_direction == envoy::config::core::v3::TrafficDirection::OUTBOUND && encoding_state_) {
+    return !encoding_state_->noExternalProcess();
+  }
+  if (mode_override_.has_value()) {
+    using envoy::extensions::filters::http::ext_proc::v3::ProcessingMode;
+    const auto& mode = mode_override_.value();
+    if (traffic_direction == envoy::config::core::v3::TrafficDirection::INBOUND) {
+      return mode.request_header_mode() != ProcessingMode::SKIP ||
+             mode.request_trailer_mode() == ProcessingMode::SEND ||
+             mode.request_body_mode() != ProcessingMode::NONE;
+    }
+    return mode.response_header_mode() != ProcessingMode::SKIP ||
+           mode.response_trailer_mode() == ProcessingMode::SEND ||
+           mode.response_body_mode() != ProcessingMode::NONE;
+  }
+  if (merged_config_) {
+    return merged_config_->hasExternalProcess(traffic_direction);
+  }
+  return config_->hasExternalProcess(traffic_direction);
 }
 
 ProcessingRequest Filter::buildHeaderRequest(ProcessorState& state,
@@ -1251,7 +1413,7 @@ std::pair<bool, Http::FilterDataStatus> Filter::sendStreamChunk(ProcessorState& 
 FilterDataStatus Filter::decodeData(Buffer::Instance& data, bool end_stream) {
   ENVOY_STREAM_LOG(trace, "decodeData({}): end_stream = {}", *decoder_callbacks_, data.length(),
                    end_stream);
-  const auto status = onData(decoding_state_, data, end_stream);
+  const auto status = onData(decodingState(), data, end_stream);
   ENVOY_STREAM_LOG(trace, "decodeData returning {}", *decoder_callbacks_, static_cast<int>(status));
   return status;
 }
@@ -1346,7 +1508,7 @@ FilterTrailersStatus Filter::onTrailers(ProcessorState& state, Http::HeaderMap& 
 
 FilterTrailersStatus Filter::decodeTrailers(RequestTrailerMap& trailers) {
   ENVOY_STREAM_LOG(trace, "decodeTrailers", *decoder_callbacks_);
-  const auto status = onTrailers(decoding_state_, trailers);
+  const auto status = onTrailers(decodingState(), trailers);
   ENVOY_STREAM_LOG(trace, "decodeTrailers returning {}", *decoder_callbacks_,
                    static_cast<int>(status));
   return status;
@@ -1358,34 +1520,27 @@ FilterHeadersStatus Filter::encodeHeaders(ResponseHeaderMap& headers, bool end_s
   // local reply.
   mergePerRouteConfig();
 
-  if (encoding_state_.sendHeaders() && config_->observabilityMode()) {
-    return sendHeadersInObservabilityMode(headers, encoding_state_, end_stream);
+  if (encodingState().sendHeaders() && config_->observabilityMode()) {
+    return sendHeadersInObservabilityMode(headers, encodingState(), end_stream);
   }
 
   if (end_stream) {
-    encoding_state_.setCompleteBodyAvailable(true);
+    encodingState().setCompleteBodyAvailable(true);
   }
 
   FilterHeadersStatus status = FilterHeadersStatus::Continue;
-  if (!processing_complete_ && encoding_state_.sendHeaders()) {
-    status = onHeaders(encoding_state_, headers, end_stream);
+  if (!processing_complete_ && encodingState().sendHeaders()) {
+    status = onHeaders(encodingState(), headers, end_stream);
     ENVOY_STREAM_LOG(trace, "onHeaders returns {}", *decoder_callbacks_, static_cast<int>(status));
   } else {
     ENVOY_STREAM_LOG(trace, "encodeHeaders: Skipped header processing", *decoder_callbacks_);
   }
 
-  // The content-length header will be kept when either one of the following conditions is met:
-  // (1) `shouldRemoveContentLength` returns false.
-  // (2) side stream processing has been completed. For example, it could be caused by stream error
-  // that triggers the local reply or due to spurious message that skips the side stream
-  // mutation.
-  if (!processing_complete_ && encoding_state_.shouldRemoveContentLength()) {
+  if (!processing_complete_ && encodingState().shouldRemoveContentLength()) {
     headers.removeContentLength();
   }
 
-  // If there is no external processing configured in the encoding path,
-  // closing the gRPC stream if it is still open.
-  if (encoding_state_.noExternalProcess()) {
+  if (encodingState().noExternalProcess()) {
     closeStreamMaybeGraceful();
   }
 
@@ -1395,14 +1550,14 @@ FilterHeadersStatus Filter::encodeHeaders(ResponseHeaderMap& headers, bool end_s
 FilterDataStatus Filter::encodeData(Buffer::Instance& data, bool end_stream) {
   ENVOY_STREAM_LOG(trace, "encodeData({}): end_stream = {}", *decoder_callbacks_, data.length(),
                    end_stream);
-  const auto status = onData(encoding_state_, data, end_stream);
+  const auto status = onData(encodingState(), data, end_stream);
   ENVOY_STREAM_LOG(trace, "encodeData returning {}", *decoder_callbacks_, static_cast<int>(status));
   return status;
 }
 
 FilterTrailersStatus Filter::encodeTrailers(ResponseTrailerMap& trailers) {
   ENVOY_STREAM_LOG(trace, "encodeTrailers", *decoder_callbacks_);
-  const auto status = onTrailers(encoding_state_, trailers);
+  const auto status = onTrailers(encodingState(), trailers);
   ENVOY_STREAM_LOG(trace, "encodeTrailers returning {}", *decoder_callbacks_,
                    static_cast<int>(status));
   return status;
@@ -1524,8 +1679,10 @@ void Filter::onNewTimeout(const Protobuf::Duration& override_message_timeout) {
   }
   // One of the below function call is non-op since the ext_proc filter can
   // only be in one of the below state, and just one timer is enabled.
-  auto decoder_timer_restarted = decoding_state_.restartMessageTimer(message_timeout_ms);
-  auto encoder_timer_restarted = encoding_state_.restartMessageTimer(message_timeout_ms);
+  bool decoder_timer_restarted =
+      decoding_state_ ? decoding_state_->restartMessageTimer(message_timeout_ms) : false;
+  bool encoder_timer_restarted =
+      encoding_state_ ? encoding_state_->restartMessageTimer(message_timeout_ms) : false;
   if (!decoder_timer_restarted && !encoder_timer_restarted) {
     stats_.override_message_timeout_ignored_.inc();
     return;
@@ -1620,10 +1777,12 @@ void Filter::addAttributes(ProcessorState& state, ProcessingRequest& req) {
   (*req.mutable_attributes())[FilterName] = attributes;
 }
 
-void Filter::setDynamicMetadata(Http::StreamFilterCallbacks* cb, const ProcessorState& state,
+void Filter::setDynamicMetadata(Http::StreamFilterCallbacks* cb, const ProcessorState* state,
                                 const ProcessingResponse& response) {
-  if (state.untypedReceivingMetadataNamespaces().empty() || !response.has_dynamic_metadata()) {
-    if (response.has_dynamic_metadata()) {
+  if (!state || state->untypedReceivingMetadataNamespaces().empty() ||
+      !response.has_dynamic_metadata()) {
+    if (response.has_dynamic_metadata() && state &&
+        !state->untypedReceivingMetadataNamespaces().empty()) {
       ENVOY_STREAM_LOG(debug,
                        "processing response included dynamic metadata, but no receiving "
                        "namespaces are configured.",
@@ -1633,7 +1792,7 @@ void Filter::setDynamicMetadata(Http::StreamFilterCallbacks* cb, const Processor
   }
 
   auto response_metadata = response.dynamic_metadata().fields();
-  auto receiving_namespaces = state.untypedReceivingMetadataNamespaces();
+  auto receiving_namespaces = state->untypedReceivingMetadataNamespaces();
   for (const auto& context_key : response_metadata) {
     bool found_allowed_namespace = false;
     if (auto metadata_it =
@@ -1653,10 +1812,10 @@ void Filter::setDynamicMetadata(Http::StreamFilterCallbacks* cb, const Processor
 }
 
 void Filter::setEncoderDynamicMetadata(const ProcessingResponse& response) {
-  setDynamicMetadata(encoder_callbacks_, encoding_state_, response);
+  setDynamicMetadata(encoder_callbacks_, encoding_state_.get(), response);
 }
 void Filter::setDecoderDynamicMetadata(const ProcessingResponse& response) {
-  setDynamicMetadata(decoder_callbacks_, decoding_state_, response);
+  setDynamicMetadata(decoder_callbacks_, decoding_state_.get(), response);
 }
 
 // If an error response is received, sends an immediate response with an error message.
@@ -1740,27 +1899,32 @@ void Filter::closeGrpcStreamIfLastRespReceived(const ProcessingResponse& respons
   }
 
   bool last_response = false;
+  bool has_encoding_process =
+      hasExternalProcess(envoy::config::core::v3::TrafficDirection::OUTBOUND);
+
   switch (response.response_case()) {
   case ProcessingResponse::ResponseCase::kRequestHeaders:
-    if (encoding_state_.noExternalProcess()) {
-      last_response = decoding_state_.isLastResponseAfterHeaderResp();
+    if (!has_encoding_process) {
+      last_response = decoding_state_ && decoding_state_->isLastResponseAfterHeaderResp();
     }
     break;
   case ProcessingResponse::ResponseCase::kRequestBody:
-    if (encoding_state_.noExternalProcess()) {
-      last_response = decoding_state_.isLastResponseAfterBodyResp(eos_seen_in_body);
+    if (!has_encoding_process) {
+      last_response =
+          decoding_state_ && decoding_state_->isLastResponseAfterBodyResp(eos_seen_in_body);
     }
     break;
   case ProcessingResponse::ResponseCase::kRequestTrailers:
-    if (encoding_state_.noExternalProcess()) {
+    if (!has_encoding_process) {
       last_response = true;
     }
     break;
   case ProcessingResponse::ResponseCase::kResponseHeaders:
-    last_response = encoding_state_.isLastResponseAfterHeaderResp();
+    last_response = encoding_state_ && encoding_state_->isLastResponseAfterHeaderResp();
     break;
   case ProcessingResponse::ResponseCase::kResponseBody:
-    last_response = encoding_state_.isLastResponseAfterBodyResp(eos_seen_in_body);
+    last_response =
+        encoding_state_ && encoding_state_->isLastResponseAfterBodyResp(eos_seen_in_body);
     break;
   case ProcessingResponse::ResponseCase::kResponseTrailers:
     last_response = true;
@@ -1824,8 +1988,13 @@ void Filter::onReceiveMessage(std::unique_ptr<ProcessingResponse>&& r) {
     if (config_->isAllowedOverrideMode(mode_override)) {
       ENVOY_STREAM_LOG(debug, "Processing mode overridden by server for this request",
                        *decoder_callbacks_);
-      decoding_state_.setProcessingMode(mode_override);
-      encoding_state_.setProcessingMode(mode_override);
+      mode_override_ = mode_override;
+      if (decoding_state_) {
+        decoding_state_->setProcessingMode(mode_override);
+      }
+      if (encoding_state_) {
+        encoding_state_->setProcessingMode(mode_override);
+      }
     } else {
       ENVOY_STREAM_LOG(debug, "Processing mode overridden by server is disallowed",
                        *decoder_callbacks_);
@@ -1840,29 +2009,43 @@ void Filter::onReceiveMessage(std::unique_ptr<ProcessingResponse>&& r) {
   switch (response->response_case()) {
   case ProcessingResponse::ResponseCase::kRequestHeaders:
     setDecoderDynamicMetadata(*response);
-    processing_status = decoding_state_.handleHeadersResponse(response->request_headers());
+    processing_status = decoding_state_
+                            ? decoding_state_->handleHeadersResponse(response->request_headers())
+                            : absl::FailedPreconditionError("decoding state not initialized");
     break;
   case ProcessingResponse::ResponseCase::kResponseHeaders:
     setEncoderDynamicMetadata(*response);
-    processing_status = encoding_state_.handleHeadersResponse(response->response_headers());
+    processing_status = encoding_state_
+                            ? encoding_state_->handleHeadersResponse(response->response_headers())
+                            : absl::FailedPreconditionError("encoding state not initialized");
     break;
   case ProcessingResponse::ResponseCase::kRequestBody:
-    eos_seen_in_body = eosSeenInBody(decoding_state_, response->request_body());
+    eos_seen_in_body =
+        decoding_state_ ? eosSeenInBody(*decoding_state_, response->request_body()) : false;
     setDecoderDynamicMetadata(*response);
-    processing_status = decoding_state_.handleBodyResponse(response->request_body());
+    processing_status = decoding_state_
+                            ? decoding_state_->handleBodyResponse(response->request_body())
+                            : absl::FailedPreconditionError("decoding state not initialized");
     break;
   case ProcessingResponse::ResponseCase::kResponseBody:
-    eos_seen_in_body = eosSeenInBody(encoding_state_, response->response_body());
+    eos_seen_in_body =
+        encoding_state_ ? eosSeenInBody(*encoding_state_, response->response_body()) : false;
     setEncoderDynamicMetadata(*response);
-    processing_status = encoding_state_.handleBodyResponse(response->response_body());
+    processing_status = encoding_state_
+                            ? encoding_state_->handleBodyResponse(response->response_body())
+                            : absl::FailedPreconditionError("encoding state not initialized");
     break;
   case ProcessingResponse::ResponseCase::kRequestTrailers:
     setDecoderDynamicMetadata(*response);
-    processing_status = decoding_state_.handleTrailersResponse(response->request_trailers());
+    processing_status = decoding_state_
+                            ? decoding_state_->handleTrailersResponse(response->request_trailers())
+                            : absl::FailedPreconditionError("decoding state not initialized");
     break;
   case ProcessingResponse::ResponseCase::kResponseTrailers:
     setEncoderDynamicMetadata(*response);
-    processing_status = encoding_state_.handleTrailersResponse(response->response_trailers());
+    processing_status = encoding_state_
+                            ? encoding_state_->handleTrailersResponse(response->response_trailers())
+                            : absl::FailedPreconditionError("encoding state not initialized");
     break;
   case ProcessingResponse::ResponseCase::kStreamedImmediateResponse:
     setEncoderDynamicMetadata(*response);
@@ -1912,27 +2095,20 @@ void Filter::onReceiveMessage(std::unique_ptr<ProcessingResponse>&& r) {
     const bool fail_close_spurious_resp =
         Runtime::runtimeFeatureEnabled(
             "envoy.reloadable_features.ext_proc_fail_close_spurious_resp") ||
-        decoding_state_.localResponseStarted();
+        (decoding_state_ && decoding_state_->localResponseStarted());
     if (failureModeAllow() || !fail_close_spurious_resp) {
-      // When a message is received out of order,and fail open is configured,
-      // ignore it and also ignore the stream for the rest of this filter
-      // instance's lifetime to protect us from a malformed server.
       logFailOpen();
       closeStream();
       clearAsyncState(processing_status.raw_code());
       processing_complete_ = true;
     } else {
-      // Send an immediate response if fail close is configured.
       handleErrorResponse(processing_status);
     }
   } else {
-    // Any other error results in an immediate response with an error message.
-    // This could happen, for example, after a header mutation is rejected.
     stats_.stream_msgs_received_.inc();
     handleErrorResponse(processing_status);
   }
 
-  // Close the gRPC stream if no more external processing needed.
   closeGrpcStreamIfLastRespReceived(*response, eos_seen_in_body);
 }
 
@@ -1941,22 +2117,20 @@ absl::Status Filter::handleStreamingImmediateResponse(
   ProcessingResult result;
   switch (response.response_case()) {
   case envoy::service::ext_proc::v3::StreamedImmediateResponse::kHeadersResponse:
-    // To avoid sending local response back to external processor, we disable
-    // encoder processing.
-    encoding_state_.setLocalResponseStreaming();
-    result = decoding_state_.startLocalResponse(response);
+    encodingState().setLocalResponseStreaming();
+    result = decodingState().startLocalResponse(response);
     if (result.processing_complete && result.status.ok()) {
       finishProcessing();
     }
     break;
   case envoy::service::ext_proc::v3::StreamedImmediateResponse::kBodyResponse:
-    result = decoding_state_.processLocalBodyResponse(response);
+    result = decodingState().processLocalBodyResponse(response);
     if (result.processing_complete && result.status.ok()) {
       finishProcessing();
     }
     break;
   case envoy::service::ext_proc::v3::StreamedImmediateResponse::kTrailersResponse:
-    result = decoding_state_.processLocalTrailersResponse(response);
+    result = decodingState().processLocalTrailersResponse(response);
     if (result.processing_complete && result.status.ok()) {
       finishProcessing();
     }
@@ -2048,8 +2222,11 @@ void Filter::onMessageTimeout() {
 }
 
 void Filter::recordGrpcStatusBeforeFirstCall(Grpc::Status::GrpcStatus call_status) {
-  if (!decoding_state_.getCallStartTime().has_value() &&
-      !encoding_state_.getCallStartTime().has_value()) {
+  bool decoding_has_no_call_start =
+      !decoding_state_ || !decoding_state_->getCallStartTime().has_value();
+  bool encoding_has_no_call_start =
+      !encoding_state_ || !encoding_state_->getCallStartTime().has_value();
+  if (decoding_has_no_call_start && encoding_has_no_call_start) {
     if (loggingInfo() != nullptr) {
       loggingInfo()->recordGrpcStatusBeforeFirstCall(call_status);
     }
@@ -2060,16 +2237,24 @@ void Filter::recordGrpcStatusBeforeFirstCall(Grpc::Status::GrpcStatus call_statu
 // the current callback, and reset timers. This is used in a few error-handling situations.
 void Filter::clearAsyncState(Grpc::Status::GrpcStatus call_status) {
   recordGrpcStatusBeforeFirstCall(call_status);
-  decoding_state_.clearAsyncState(call_status);
-  encoding_state_.clearAsyncState(call_status);
+  if (decoding_state_) {
+    decoding_state_->clearAsyncState(call_status);
+  }
+  if (encoding_state_) {
+    encoding_state_->clearAsyncState(call_status);
+  }
 }
 
 // Regardless of the current state, ensure that the timers won't fire
 // again.
 void Filter::onFinishProcessorCalls(Grpc::Status::GrpcStatus call_status) {
   recordGrpcStatusBeforeFirstCall(call_status);
-  decoding_state_.onFinishProcessorCall(call_status);
-  encoding_state_.onFinishProcessorCall(call_status);
+  if (decoding_state_) {
+    decoding_state_->onFinishProcessorCall(call_status);
+  }
+  if (encoding_state_) {
+    encoding_state_->onFinishProcessorCall(call_status);
+  }
 }
 
 void Filter::sendImmediateResponse(const ImmediateResponse& response) {
@@ -2126,33 +2311,26 @@ void Filter::mergePerRouteConfig() {
     return;
   }
 
-  if (merged_config->disabled()) {
-    // Rather than introduce yet another flag, use the processing mode
-    // structure to disable all the callbacks.
-    ENVOY_STREAM_LOG(trace, "Disabling filter due to per-route configuration", *decoder_callbacks_);
-    const auto all_disabled = allDisabledMode();
-    decoding_state_.setProcessingMode(all_disabled);
-    encoding_state_.setProcessingMode(all_disabled);
-    return;
+  merged_config_ = std::make_unique<FilterConfigPerRoute>(merged_config.value());
+
+  if (decoding_state_) {
+    applyConfigurations(*decoding_state_);
   }
-  if (merged_config->processingMode().has_value()) {
-    ENVOY_STREAM_LOG(trace, "Setting new processing mode from per-route configuration",
-                     *decoder_callbacks_);
-    decoding_state_.setProcessingMode(*(merged_config->processingMode()));
-    encoding_state_.setProcessingMode(*(merged_config->processingMode()));
+  if (encoding_state_) {
+    applyConfigurations(*encoding_state_);
   }
-  if (merged_config->grpcService().has_value()) {
+  if (merged_config_->grpcService().has_value()) {
     ENVOY_STREAM_LOG(trace, "Setting new GrpcService from per-route configuration",
                      *decoder_callbacks_);
-    grpc_service_ = *merged_config->grpcService();
-    config_with_hash_key_.setConfig(*merged_config->grpcService());
+    grpc_service_ = *merged_config_->grpcService();
+    config_with_hash_key_.setConfig(*merged_config_->grpcService());
   }
-  if (!merged_config->grpcInitialMetadata().empty()) {
+  if (!merged_config_->grpcInitialMetadata().empty()) {
     ENVOY_STREAM_LOG(trace, "Overriding grpc initial metadata from per-route configuration",
                      *decoder_callbacks_);
     envoy::config::core::v3::GrpcService config = config_with_hash_key_.config();
     auto ptr = config.mutable_initial_metadata();
-    for (const auto& header : merged_config->grpcInitialMetadata()) {
+    for (const auto& header : merged_config_->grpcInitialMetadata()) {
       ENVOY_STREAM_LOG(trace, "Setting grpc initial metadata {} = {}", *decoder_callbacks_,
                        header.key(), header.value());
       mergeHeaderValuesField(*ptr, header);
@@ -2160,75 +2338,85 @@ void Filter::mergePerRouteConfig() {
     config_with_hash_key_.setConfig(config);
   }
 
-  // For metadata namespaces, we only override the existing value if we have a
-  // value from our merged config. We indicate a lack of value from the merged
-  // config with absl::nullopt
-
-  if (merged_config->untypedForwardingMetadataNamespaces().has_value()) {
-    untyped_forwarding_namespaces_ = merged_config->untypedForwardingMetadataNamespaces().value();
+  if (merged_config_->untypedForwardingMetadataNamespaces().has_value()) {
     ENVOY_STREAM_LOG(
         trace, "Setting new untyped forwarding metadata namespaces from per-route configuration",
         *decoder_callbacks_);
-    decoding_state_.setUntypedForwardingMetadataNamespaces(untyped_forwarding_namespaces_);
-    encoding_state_.setUntypedForwardingMetadataNamespaces(untyped_forwarding_namespaces_);
+    const auto& ns = *merged_config_->untypedForwardingMetadataNamespaces();
+    if (decoding_state_) {
+      decoding_state_->setUntypedForwardingMetadataNamespaces(ns);
+    }
+    if (encoding_state_) {
+      encoding_state_->setUntypedForwardingMetadataNamespaces(ns);
+    }
   }
 
-  if (merged_config->typedForwardingMetadataNamespaces().has_value()) {
-    typed_forwarding_namespaces_ = merged_config->typedForwardingMetadataNamespaces().value();
+  if (merged_config_->typedForwardingMetadataNamespaces().has_value()) {
     ENVOY_STREAM_LOG(
         trace, "Setting new typed forwarding metadata namespaces from per-route configuration",
         *decoder_callbacks_);
-    decoding_state_.setTypedForwardingMetadataNamespaces(typed_forwarding_namespaces_);
-    encoding_state_.setTypedForwardingMetadataNamespaces(typed_forwarding_namespaces_);
+    const auto& ns = *merged_config_->typedForwardingMetadataNamespaces();
+    if (decoding_state_) {
+      decoding_state_->setTypedForwardingMetadataNamespaces(ns);
+    }
+    if (encoding_state_) {
+      encoding_state_->setTypedForwardingMetadataNamespaces(ns);
+    }
   }
 
-  if (merged_config->untypedReceivingMetadataNamespaces().has_value()) {
-    untyped_receiving_namespaces_ = merged_config->untypedReceivingMetadataNamespaces().value();
+  if (merged_config_->untypedReceivingMetadataNamespaces().has_value()) {
     ENVOY_STREAM_LOG(
         trace, "Setting new untyped receiving metadata namespaces from per-route configuration",
         *decoder_callbacks_);
-    decoding_state_.setUntypedReceivingMetadataNamespaces(untyped_receiving_namespaces_);
-    encoding_state_.setUntypedReceivingMetadataNamespaces(untyped_receiving_namespaces_);
+    const auto& ns = *merged_config_->untypedReceivingMetadataNamespaces();
+    if (decoding_state_) {
+      decoding_state_->setUntypedReceivingMetadataNamespaces(ns);
+    }
+    if (encoding_state_) {
+      encoding_state_->setUntypedReceivingMetadataNamespaces(ns);
+    }
   }
 
-  if (merged_config->untypedClusterMetadataForwardingNamespaces().has_value()) {
-    untyped_cluster_metadata_forwarding_namespaces_ =
-        merged_config->untypedClusterMetadataForwardingNamespaces().value();
+  if (merged_config_->untypedClusterMetadataForwardingNamespaces().has_value()) {
     ENVOY_STREAM_LOG(trace,
                      "Setting new untyped cluster metadata forwarding "
                      "namespaces from per-route "
                      "configuration",
                      *decoder_callbacks_);
-    decoding_state_.setUntypedClusterMetadataForwardingNamespaces(
-        untyped_cluster_metadata_forwarding_namespaces_);
-    encoding_state_.setUntypedClusterMetadataForwardingNamespaces(
-        untyped_cluster_metadata_forwarding_namespaces_);
+    const auto& ns = *merged_config_->untypedClusterMetadataForwardingNamespaces();
+    if (decoding_state_) {
+      decoding_state_->setUntypedClusterMetadataForwardingNamespaces(ns);
+    }
+    if (encoding_state_) {
+      encoding_state_->setUntypedClusterMetadataForwardingNamespaces(ns);
+    }
   }
 
-  if (merged_config->typedClusterMetadataForwardingNamespaces().has_value()) {
-    typed_cluster_metadata_forwarding_namespaces_ =
-        merged_config->typedClusterMetadataForwardingNamespaces().value();
+  if (merged_config_->typedClusterMetadataForwardingNamespaces().has_value()) {
     ENVOY_STREAM_LOG(trace,
                      "Setting new typed cluster metadata forwarding namespaces "
                      "from per-route "
                      "configuration",
                      *decoder_callbacks_);
-    decoding_state_.setTypedClusterMetadataForwardingNamespaces(
-        typed_cluster_metadata_forwarding_namespaces_);
-    encoding_state_.setTypedClusterMetadataForwardingNamespaces(
-        typed_cluster_metadata_forwarding_namespaces_);
+    const auto& ns = *merged_config_->typedClusterMetadataForwardingNamespaces();
+    if (decoding_state_) {
+      decoding_state_->setTypedClusterMetadataForwardingNamespaces(ns);
+    }
+    if (encoding_state_) {
+      encoding_state_->setTypedClusterMetadataForwardingNamespaces(ns);
+    }
   }
 
-  if (merged_config->failureModeAllow().has_value()) {
+  if (merged_config_->failureModeAllow().has_value()) {
     ENVOY_STREAM_LOG(trace, "Setting new failureModeAllow from per-route configuration",
                      *decoder_callbacks_);
-    failure_mode_allow_ = merged_config->failureModeAllow().value();
+    failure_mode_allow_ = merged_config_->failureModeAllow().value();
   }
 
-  if (merged_config->hasProcessingRequestModifierConfig()) {
+  if (merged_config_->hasProcessingRequestModifierConfig()) {
     ENVOY_STREAM_LOG(trace, "Setting processing request modifier from per-route configuration",
                      *decoder_callbacks_);
-    processing_request_modifier_ = merged_config->createProcessingRequestModifier();
+    processing_request_modifier_ = merged_config_->createProcessingRequestModifier();
   }
 }
 

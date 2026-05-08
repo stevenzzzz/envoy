@@ -292,6 +292,18 @@ public:
 
   bool isUpstream() const { return is_upstream_; }
 
+  bool hasExternalProcess(envoy::config::core::v3::TrafficDirection traffic_direction) const {
+    using envoy::extensions::filters::http::ext_proc::v3::ProcessingMode;
+    if (traffic_direction == envoy::config::core::v3::TrafficDirection::INBOUND) {
+      return processing_mode_.request_header_mode() != ProcessingMode::SKIP ||
+             processing_mode_.request_trailer_mode() == ProcessingMode::SEND ||
+             processing_mode_.request_body_mode() != ProcessingMode::NONE;
+    }
+    return processing_mode_.response_header_mode() != ProcessingMode::SKIP ||
+           processing_mode_.response_trailer_mode() == ProcessingMode::SEND ||
+           processing_mode_.response_body_mode() != ProcessingMode::NONE;
+  }
+
   const std::vector<std::string>& untypedForwardingMetadataNamespaces() const {
     return untyped_forwarding_namespaces_;
   }
@@ -467,6 +479,25 @@ public:
     return processing_request_modifier_factory_cb_();
   }
 
+  bool hasExternalProcess(envoy::config::core::v3::TrafficDirection traffic_direction) const {
+    if (disabled_) {
+      return false;
+    }
+    using envoy::extensions::filters::http::ext_proc::v3::ProcessingMode;
+    if (!processing_mode_.has_value()) {
+      return false;
+    }
+    const auto& mode = processing_mode_.value();
+    if (traffic_direction == envoy::config::core::v3::TrafficDirection::INBOUND) {
+      return mode.request_header_mode() != ProcessingMode::SKIP ||
+             mode.request_trailer_mode() == ProcessingMode::SEND ||
+             mode.request_body_mode() != ProcessingMode::NONE;
+    }
+    return mode.response_header_mode() != ProcessingMode::SKIP ||
+           mode.response_trailer_mode() == ProcessingMode::SEND ||
+           mode.response_body_mode() != ProcessingMode::NONE;
+  }
+
 private:
   const bool disabled_;
   const absl::optional<const envoy::extensions::filters::http::ext_proc::v3::ProcessingMode>
@@ -503,26 +534,7 @@ class Filter : public Logger::Loggable<Logger::Id::ext_proc>,
   };
 
 public:
-  Filter(const FilterConfigSharedPtr& config, ClientBasePtr&& client)
-      : config_(config), client_(std::move(client)), stats_(config->stats()),
-        grpc_service_(config->grpcService().has_value() ? config->grpcService().value()
-                                                        : envoy::config::core::v3::GrpcService()),
-        config_with_hash_key_(grpc_service_),
-        decoding_state_(
-            *this, config->processingMode(), config->untypedForwardingMetadataNamespaces(),
-            config->typedForwardingMetadataNamespaces(),
-            config->untypedReceivingMetadataNamespaces(),
-            config->untypedClusterMetadataForwardingNamespaces(),
-            config->typedClusterMetadataForwardingNamespaces(), config->keepContentLength()),
-        encoding_state_(
-            *this, config->processingMode(), config->untypedForwardingMetadataNamespaces(),
-            config->typedForwardingMetadataNamespaces(),
-            config->untypedReceivingMetadataNamespaces(),
-            config->untypedClusterMetadataForwardingNamespaces(),
-            config->typedClusterMetadataForwardingNamespaces(), config->keepContentLength()),
-        processing_request_modifier_(config->createProcessingRequestModifier()),
-        on_processing_response_(config->createOnProcessingResponse()),
-        failure_mode_allow_(config->failureModeAllow()) {}
+  Filter(const FilterConfigSharedPtr& config, ClientBasePtr&& client);
 
   const FilterConfig& config() const { return *config_; }
   const envoy::config::core::v3::GrpcService& grpcServiceConfig() const {
@@ -572,13 +584,17 @@ public:
 
   void sendTrailers(ProcessorState& state, const Http::HeaderMap& trailers,
                     bool observability_mode = false);
-  bool inHeaderProcessState() {
-    return (decoding_state_.callbackState() == ProcessorState::CallbackState::HeadersCallback ||
-            encoding_state_.callbackState() == ProcessorState::CallbackState::HeadersCallback);
+  bool inHeaderProcessState() const {
+    return (decoding_state_ &&
+            decoding_state_->callbackState() == ProcessorState::CallbackState::HeadersCallback) ||
+           (encoding_state_ &&
+            encoding_state_->callbackState() == ProcessorState::CallbackState::HeadersCallback);
   }
 
-  const ProcessorState& encodingState() { return encoding_state_; }
-  const ProcessorState& decodingState() { return decoding_state_; }
+  DecodingProcessorState& decodingState();
+  const DecodingProcessorState& decodingState() const;
+  EncodingProcessorState& encodingState();
+  const EncodingProcessorState& encodingState() const;
   void onComplete(envoy::service::ext_proc::v3::ProcessingResponse& response) override;
   void onError() override;
 
@@ -595,6 +611,9 @@ public:
       const envoy::service::ext_proc::v3::StreamedImmediateResponse& response, absl::Status status);
 
 private:
+  void ensureDecodingState() const;
+  void ensureEncodingState() const;
+  void applyConfigurations(ProcessorState& state) const;
   void mergePerRouteConfig();
   StreamOpenState openStream();
   void closeStream();
@@ -625,7 +644,7 @@ private:
   Http::FilterDataStatus onData(ProcessorState& state, Buffer::Instance& data, bool end_stream);
 
   Http::FilterTrailersStatus onTrailers(ProcessorState& state, Http::HeaderMap& trailers);
-  void setDynamicMetadata(Http::StreamFilterCallbacks* cb, const ProcessorState& state,
+  void setDynamicMetadata(Http::StreamFilterCallbacks* cb, const ProcessorState* state,
                           const envoy::service::ext_proc::v3::ProcessingResponse& response);
   void setEncoderDynamicMetadata(const envoy::service::ext_proc::v3::ProcessingResponse& response);
   void setDecoderDynamicMetadata(const envoy::service::ext_proc::v3::ProcessingResponse& response);
@@ -659,6 +678,8 @@ private:
       Extensions::Filters::Common::Expr::BuilderInstanceSharedConstPtr builder,
       Server::Configuration::CommonFactoryContext& context);
 
+  bool hasExternalProcess(envoy::config::core::v3::TrafficDirection traffic_direction) const;
+
   // Gracefully close the gRPC stream based on configuration.
   void closeStreamMaybeGraceful();
 
@@ -678,14 +699,17 @@ private:
   Grpc::GrpcServiceConfigWithHashKey config_with_hash_key_;
 
   // The state of the filter on both the encoding and decoding side.
-  DecodingProcessorState decoding_state_;
-  EncodingProcessorState encoding_state_;
+  mutable std::unique_ptr<DecodingProcessorState> decoding_state_;
 
-  std::vector<std::string> untyped_forwarding_namespaces_{};
-  std::vector<std::string> typed_forwarding_namespaces_{};
-  std::vector<std::string> untyped_receiving_namespaces_{};
-  std::vector<std::string> untyped_cluster_metadata_forwarding_namespaces_{};
-  std::vector<std::string> typed_cluster_metadata_forwarding_namespaces_{};
+  mutable std::unique_ptr<EncodingProcessorState> encoding_state_;
+
+  std::unique_ptr<FilterConfigPerRoute> merged_config_;
+  absl::optional<envoy::extensions::filters::http::ext_proc::v3::ProcessingMode> mode_override_;
+
+  Http::RequestHeaderMap* request_headers_ = nullptr;
+  Http::StreamDecoderFilterCallbacks* decoder_callbacks_ = nullptr;
+  Http::StreamEncoderFilterCallbacks* encoder_callbacks_ = nullptr;
+
   Http::StreamFilterCallbacks* filter_callbacks_;
   Http::StreamFilterSidestreamWatermarkCallbacks watermark_callbacks_;
 

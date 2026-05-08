@@ -3555,7 +3555,7 @@ TEST_F(HttpFilterTest, StreamedBodyCallbackWithEmptyQueue) {
   processRequestHeaders(false, absl::nullopt);
 
   // Manually transition decoding_state_ to StreamedBodyCallback while the chunk_queue_ is empty.
-  auto& decoding_state = const_cast<ProcessorState&>(filter_->decodingState());
+  auto& decoding_state = filter_->decodingState();
   decoding_state.onFinishProcessorCall(Grpc::Status::Ok,
                                        ProcessorState::CallbackState::StreamedBodyCallback);
 
