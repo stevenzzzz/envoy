@@ -730,6 +730,9 @@ void Filter::ensureDecodingState() const {
     if (decoder_callbacks_) {
       decoding_state_->setDecoderFilterCallbacks(*decoder_callbacks_);
     }
+    if (request_headers_) {
+      decoding_state_->setRequestHeaders(request_headers_);
+    }
     if (request_body_complete_available_) {
       decoding_state_->setCompleteBodyAvailable(true);
     }
@@ -1066,15 +1069,8 @@ FilterHeadersStatus Filter::decodeHeaders(RequestHeaderMap& headers, bool end_st
     }
   }
 
-  // Store request headers reference on the Filter class.
-  // Directional processor states will fetch this dynamically or have it set upon creation.
+  // Store request headers reference on the Filter class for lazy propagation.
   request_headers_ = &headers;
-  if (decoding_state_) {
-    decoding_state_->setRequestHeaders(&headers);
-  }
-  if (encoding_state_) {
-    encoding_state_->setRequestHeaders(&headers);
-  }
 
   FilterHeadersStatus status = FilterHeadersStatus::Continue;
   if (should_send_headers) {
@@ -1462,6 +1458,17 @@ std::pair<bool, Http::FilterDataStatus> Filter::sendStreamChunk(ProcessorState& 
 FilterDataStatus Filter::decodeData(Buffer::Instance& data, bool end_stream) {
   ENVOY_STREAM_LOG(trace, "decodeData({}): end_stream = {}", *decoder_callbacks_, data.length(),
                    end_stream);
+  if (!decoding_state_) {
+    auto body_mode = config_->processingMode().request_body_mode();
+    if (mode_override_.has_value()) {
+      body_mode = mode_override_->request_body_mode();
+    } else if (merged_config_ && merged_config_->processingMode().has_value()) {
+      body_mode = merged_config_->processingMode()->request_body_mode();
+    }
+    if (body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::NONE) {
+      return FilterDataStatus::Continue;
+    }
+  }
   const auto status = onData(decodingState(), data, end_stream);
   ENVOY_STREAM_LOG(trace, "decodeData returning {}", *decoder_callbacks_, static_cast<int>(status));
   return status;
@@ -1557,6 +1564,19 @@ FilterTrailersStatus Filter::onTrailers(ProcessorState& state, Http::HeaderMap& 
 
 FilterTrailersStatus Filter::decodeTrailers(RequestTrailerMap& trailers) {
   ENVOY_STREAM_LOG(trace, "decodeTrailers", *decoder_callbacks_);
+  if (!decoding_state_) {
+    bool send_trailers = false;
+    if (mode_override_.has_value()) {
+      send_trailers = mode_override_->request_trailer_mode() == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SEND;
+    } else if (merged_config_ && merged_config_->processingMode().has_value()) {
+      send_trailers = merged_config_->processingMode()->request_trailer_mode() == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SEND;
+    } else {
+      send_trailers = config_->processingMode().request_trailer_mode() == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SEND;
+    }
+    if (!send_trailers) {
+      return FilterTrailersStatus::Continue;
+    }
+  }
   const auto status = onTrailers(decodingState(), trailers);
   ENVOY_STREAM_LOG(trace, "decodeTrailers returning {}", *decoder_callbacks_,
                    static_cast<int>(status));
@@ -1637,6 +1657,17 @@ FilterHeadersStatus Filter::encodeHeaders(ResponseHeaderMap& headers, bool end_s
 FilterDataStatus Filter::encodeData(Buffer::Instance& data, bool end_stream) {
   ENVOY_STREAM_LOG(trace, "encodeData({}): end_stream = {}", *decoder_callbacks_, data.length(),
                    end_stream);
+  if (!encoding_state_) {
+    auto body_mode = config_->processingMode().response_body_mode();
+    if (mode_override_.has_value()) {
+      body_mode = mode_override_->response_body_mode();
+    } else if (merged_config_ && merged_config_->processingMode().has_value()) {
+      body_mode = merged_config_->processingMode()->response_body_mode();
+    }
+    if (body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::NONE) {
+      return FilterDataStatus::Continue;
+    }
+  }
   const auto status = onData(encodingState(), data, end_stream);
   ENVOY_STREAM_LOG(trace, "encodeData returning {}", *decoder_callbacks_, static_cast<int>(status));
   return status;
@@ -1644,6 +1675,19 @@ FilterDataStatus Filter::encodeData(Buffer::Instance& data, bool end_stream) {
 
 FilterTrailersStatus Filter::encodeTrailers(ResponseTrailerMap& trailers) {
   ENVOY_STREAM_LOG(trace, "encodeTrailers", *decoder_callbacks_);
+  if (!encoding_state_) {
+    bool send_trailers = false;
+    if (mode_override_.has_value()) {
+      send_trailers = mode_override_->response_trailer_mode() == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SEND;
+    } else if (merged_config_ && merged_config_->processingMode().has_value()) {
+      send_trailers = merged_config_->processingMode()->response_trailer_mode() == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SEND;
+    } else {
+      send_trailers = config_->processingMode().response_trailer_mode() == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SEND;
+    }
+    if (!send_trailers) {
+      return FilterTrailersStatus::Continue;
+    }
+  }
   const auto status = onTrailers(encodingState(), trailers);
   ENVOY_STREAM_LOG(trace, "encodeTrailers returning {}", *decoder_callbacks_,
                    static_cast<int>(status));
