@@ -108,7 +108,7 @@ protected:
         {{"envoy.reloadable_features.ext_proc_return_stop_iteration", "true"}});
     client_ = std::make_unique<MockClient>();
     route_ = std::make_shared<NiceMock<Router::MockRoute>>();
-    EXPECT_CALL(*client_, start(_, _, _, _)).WillOnce(Invoke(this, &HttpFilterTest::doStart));
+    EXPECT_CALL(*client_, start(_, _, _, _)).WillOnce(Invoke(this, &HttpFilterTest::doStartInternal));
     EXPECT_CALL(encoder_callbacks_, dispatcher()).WillRepeatedly(ReturnRef(dispatcher_));
     EXPECT_CALL(decoder_callbacks_, dispatcher()).WillRepeatedly(ReturnRef(dispatcher_));
     EXPECT_CALL(decoder_callbacks_, route())
@@ -208,10 +208,19 @@ protected:
     return true;
   }
 
-  ExternalProcessorStreamPtr doStart(ExternalProcessorCallbacks& callbacks,
-                                     const Grpc::GrpcServiceConfigWithHashKey& config_with_hash_key,
-                                     const Envoy::Http::AsyncClient::StreamOptions&,
-                                     Envoy::Http::StreamFilterSidestreamWatermarkCallbacks&) {
+public:
+  virtual ExternalProcessorStreamPtr doStart(ExternalProcessorCallbacks& callbacks,
+                                             const Grpc::GrpcServiceConfigWithHashKey& config_with_hash_key,
+                                             const Envoy::Http::AsyncClient::StreamOptions& stream_opts,
+                                             Envoy::Http::StreamFilterSidestreamWatermarkCallbacks& callbacks_watermark) {
+    return doStartInternal(callbacks, config_with_hash_key, stream_opts, callbacks_watermark);
+  }
+
+protected:
+  ExternalProcessorStreamPtr doStartInternal(ExternalProcessorCallbacks& callbacks,
+                                             const Grpc::GrpcServiceConfigWithHashKey& config_with_hash_key,
+                                             const Envoy::Http::AsyncClient::StreamOptions&,
+                                             Envoy::Http::StreamFilterSidestreamWatermarkCallbacks&) {
     if (do_start_option_ == ON_GRPC_ERROR) {
       callbacks.onGrpcError(Grpc::Status::Internal, "foo");
       return nullptr;
@@ -241,9 +250,11 @@ protected:
     return stream;
   }
 
+public:
   void doSetDynamicMetadata(const std::string& ns, const Protobuf::Struct& val) {
     (*dynamic_metadata_.mutable_filter_metadata())[ns] = val;
   };
+protected:
 
   void doSend(ProcessingRequest&& request, Unused) { last_request_ = std::move(request); }
 
@@ -2973,7 +2984,7 @@ TEST_F(HttpFilterTest, ProcessingModeResponseHeadersOnlyWithoutCallingDecodeHead
       "cluster_1");
   FilterConfigPerRoute route_config(route_proto, builder_, factory_context_);
   EXPECT_CALL(decoder_callbacks_, perFilterConfigs())
-      .WillOnce(
+      .WillRepeatedly(
           testing::Invoke([&]() -> Router::RouteSpecificFilterConfigs { return {&route_config}; }));
   final_expected_grpc_service_.emplace(route_proto.overrides().grpc_service());
   config_with_hash_key_.setConfig(route_proto.overrides().grpc_service());
@@ -3019,7 +3030,7 @@ TEST_F(HttpFilterTest, ProtocolConfigEncodingPerRouteTest) {
   processing_mode->set_response_body_mode(ProcessingMode::FULL_DUPLEX_STREAMED);
   FilterConfigPerRoute route_config(route_proto, builder_, factory_context_);
   EXPECT_CALL(decoder_callbacks_, perFilterConfigs())
-      .WillOnce(
+      .WillRepeatedly(
           testing::Invoke([&]() -> Router::RouteSpecificFilterConfigs { return {&route_config}; }));
 
   EXPECT_EQ(FilterHeadersStatus::StopIteration, filter_->decodeHeaders(request_headers_, true));
@@ -3948,7 +3959,7 @@ TEST_F(HttpFilterTest, MetadataOptionsOverride) {
   FilterConfigPerRoute route_config(override_cfg, builder_, factory_context_);
 
   EXPECT_CALL(decoder_callbacks_, perFilterConfigs())
-      .WillOnce(
+      .WillRepeatedly(
           testing::Invoke([&]() -> Router::RouteSpecificFilterConfigs { return {&route_config}; }));
 
   response_headers_.addCopy(LowerCaseString(":status"), "200");
@@ -4010,7 +4021,7 @@ TEST_F(HttpFilterTest, MetadataOptionsNoOverride) {
   FilterConfigPerRoute route_config(override_cfg, builder_, factory_context_);
 
   EXPECT_CALL(decoder_callbacks_, perFilterConfigs())
-      .WillOnce(
+      .WillRepeatedly(
           testing::Invoke([&]() -> Router::RouteSpecificFilterConfigs { return {&route_config}; }));
 
   response_headers_.addCopy(LowerCaseString(":status"), "200");
@@ -4035,6 +4046,207 @@ TEST_F(HttpFilterTest, MetadataOptionsNoOverride) {
             "untyped_receiving_ns_1");
 
   EXPECT_EQ(FilterTrailersStatus::Continue, filter_->encodeTrailers(response_trailers_));
+
+  filter_->onDestroy();
+}
+
+class HttpFilterLazyAllocationTest : public HttpFilterTest {
+public:
+  ExternalProcessorStreamPtr doStart(ExternalProcessorCallbacks& callbacks,
+                                     const Grpc::GrpcServiceConfigWithHashKey& config_with_hash_key,
+                                     const Envoy::Http::AsyncClient::StreamOptions& stream_opts,
+                                     Envoy::Http::StreamFilterSidestreamWatermarkCallbacks& callbacks_watermark) override {
+    return HttpFilterTest::doStart(callbacks, config_with_hash_key, stream_opts, callbacks_watermark);
+  }
+protected:
+  void initializeWithZeroClientExpectations(std::string&& yaml) {
+    scoped_runtime_.mergeValues(
+        {{"envoy.reloadable_features.ext_proc_stream_close_optimization", "true"}});
+    scoped_runtime_.mergeValues(
+        {{"envoy.reloadable_features.ext_proc_inject_data_with_state_update", "true"}});
+    scoped_runtime_.mergeValues(
+        {{"envoy.reloadable_features.ext_proc_return_stop_iteration", "true"}});
+    client_ = std::make_unique<MockClient>();
+    route_ = std::make_shared<NiceMock<Router::MockRoute>>();
+
+    // Explicitly assert that client_->start() is NEVER called.
+    EXPECT_CALL(*client_, start(_, _, _, _)).Times(0);
+
+    EXPECT_CALL(encoder_callbacks_, dispatcher()).WillRepeatedly(ReturnRef(dispatcher_));
+    EXPECT_CALL(decoder_callbacks_, dispatcher()).WillRepeatedly(ReturnRef(dispatcher_));
+    EXPECT_CALL(decoder_callbacks_, route())
+        .WillRepeatedly(Return(makeOptRefFromPtr<const Router::Route>(route_.get())));
+    EXPECT_CALL(decoder_callbacks_, streamInfo()).WillRepeatedly(ReturnRef(stream_info_));
+    EXPECT_CALL(encoder_callbacks_, streamInfo()).WillRepeatedly(ReturnRef(stream_info_));
+    EXPECT_CALL(stream_info_, dynamicMetadata()).WillRepeatedly(ReturnRef(dynamic_metadata_));
+    EXPECT_CALL(stream_info_, setDynamicMetadata(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Invoke(this, &HttpFilterLazyAllocationTest::doSetDynamicMetadata));
+
+    EXPECT_CALL(decoder_callbacks_, connection())
+        .WillRepeatedly(Return(OptRef<const Network::Connection>{connection_}));
+    EXPECT_CALL(encoder_callbacks_, connection())
+        .WillRepeatedly(Return(OptRef<const Network::Connection>{connection_}));
+
+    test_time_ = new Envoy::Event::SimulatedTimeSystem();
+    dispatcher_.time_system_.reset(test_time_);
+
+    EXPECT_CALL(dispatcher_, createTimer_(_))
+        .Times(AnyNumber())
+        .WillRepeatedly(Invoke([this](Unused) {
+          auto* timer = new Event::MockTimer();
+          EXPECT_CALL(*timer, enableTimer(_, _)).Times(AnyNumber());
+          EXPECT_CALL(*timer, disableTimer()).Times(AnyNumber());
+          EXPECT_CALL(*timer, enabled()).Times(AnyNumber());
+          timers_.push_back(timer);
+          return timer;
+        }));
+    EXPECT_CALL(decoder_callbacks_, filterConfigName()).WillRepeatedly(Return(filter_config_name));
+
+    envoy::extensions::filters::http::ext_proc::v3::ExternalProcessor proto_config{};
+    if (!yaml.empty()) {
+      TestUtility::loadFromYaml(yaml, proto_config);
+    }
+    auto builder_ptr = Envoy::Extensions::Filters::Common::Expr::createBuilder({});
+    builder_ = std::make_shared<Envoy::Extensions::Filters::Common::Expr::BuilderInstance>(
+        std::move(builder_ptr));
+    config_ = std::make_shared<FilterConfig>(proto_config, 200ms, 10000, *stats_store_.rootScope(),
+                                             "", false, builder_, factory_context_);
+    filter_ = std::make_unique<Filter>(config_, std::move(client_));
+    filter_->setEncoderFilterCallbacks(encoder_callbacks_);
+    EXPECT_CALL(encoder_callbacks_, bufferLimit()).WillRepeatedly(Return(BufferSize));
+    filter_->setDecoderFilterCallbacks(decoder_callbacks_);
+    EXPECT_CALL(decoder_callbacks_, bufferLimit()).WillRepeatedly(Return(BufferSize));
+  }
+};
+
+// Verify that DecodingProcessorState and EncodingProcessorState are not created
+// eagerly, but lazily, and specifically not created at all if request/response paths are disabled.
+TEST_F(HttpFilterLazyAllocationTest, LazyProcessorStateAllocation) {
+  initializeWithZeroClientExpectations(R"EOF(
+  grpc_service:
+    envoy_grpc:
+      cluster_name: "ext_proc_server"
+  processing_mode:
+    request_header_mode: "SKIP"
+    response_header_mode: "SKIP"
+    request_body_mode: "NONE"
+    response_body_mode: "NONE"
+    request_trailer_mode: "SKIP"
+    response_trailer_mode: "SKIP"
+  )EOF");
+
+  // Setup mocks and routing. No per-route configs overriding the modes.
+  EXPECT_CALL(decoder_callbacks_, perFilterConfigs())
+      .WillRepeatedly(testing::Invoke([&]() -> Router::RouteSpecificFilterConfigs { return {}; }));
+
+  // Trigger decodeHeaders. Since request headers are SKIP and body is NONE, no request events are active.
+  // We assert that the lazy DecodingProcessorState unique_ptr is NOT allocated.
+  EXPECT_EQ(FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers_, false));
+  EXPECT_EQ(filter_->decodingStatePtrForTest(), nullptr);
+
+  // Trigger encodeHeaders. Since response headers are SKIP and body is NONE, no response events are active.
+  // We assert that the lazy EncodingProcessorState unique_ptr is NOT allocated.
+  response_headers_.addCopy(LowerCaseString(":status"), "200");
+  EXPECT_EQ(FilterHeadersStatus::Continue, filter_->encodeHeaders(response_headers_, false));
+  EXPECT_EQ(filter_->encodingStatePtrForTest(), nullptr);
+
+  filter_->onDestroy();
+}
+
+TEST_F(HttpFilterLazyAllocationTest, LazyProcessorStateAllocationOnActivePath) {
+  scoped_runtime_.mergeValues(
+      {{"envoy.reloadable_features.ext_proc_stream_close_optimization", "true"}});
+  scoped_runtime_.mergeValues(
+      {{"envoy.reloadable_features.ext_proc_inject_data_with_state_update", "true"}});
+  scoped_runtime_.mergeValues(
+      {{"envoy.reloadable_features.ext_proc_return_stop_iteration", "true"}});
+  client_ = std::make_unique<MockClient>();
+  route_ = std::make_shared<NiceMock<Router::MockRoute>>();
+
+  // Configure Mock Connection expectations manually.
+  EXPECT_CALL(encoder_callbacks_, dispatcher()).WillRepeatedly(ReturnRef(dispatcher_));
+  EXPECT_CALL(decoder_callbacks_, dispatcher()).WillRepeatedly(ReturnRef(dispatcher_));
+  EXPECT_CALL(decoder_callbacks_, route())
+      .WillRepeatedly(Return(makeOptRefFromPtr<const Router::Route>(route_.get())));
+  EXPECT_CALL(decoder_callbacks_, streamInfo()).WillRepeatedly(ReturnRef(stream_info_));
+  EXPECT_CALL(encoder_callbacks_, streamInfo()).WillRepeatedly(ReturnRef(stream_info_));
+  EXPECT_CALL(stream_info_, dynamicMetadata()).WillRepeatedly(ReturnRef(dynamic_metadata_));
+  EXPECT_CALL(stream_info_, setDynamicMetadata(_, _))
+      .Times(AnyNumber())
+      .WillRepeatedly(Invoke(this, &HttpFilterLazyAllocationTest::doSetDynamicMetadata));
+
+  EXPECT_CALL(decoder_callbacks_, connection())
+      .WillRepeatedly(Return(OptRef<const Network::Connection>{connection_}));
+  EXPECT_CALL(encoder_callbacks_, connection())
+      .WillRepeatedly(Return(OptRef<const Network::Connection>{connection_}));
+
+  test_time_ = new Envoy::Event::SimulatedTimeSystem();
+  dispatcher_.time_system_.reset(test_time_);
+
+  EXPECT_CALL(dispatcher_, createTimer_(_))
+      .Times(AnyNumber())
+      .WillRepeatedly(Invoke([this](Unused) {
+        auto* timer = new Event::MockTimer();
+        EXPECT_CALL(*timer, enableTimer(_, _)).Times(AnyNumber());
+        EXPECT_CALL(*timer, disableTimer()).Times(AnyNumber());
+        EXPECT_CALL(*timer, enabled()).Times(AnyNumber());
+        timers_.push_back(timer);
+        return timer;
+      }));
+  EXPECT_CALL(decoder_callbacks_, filterConfigName()).WillRepeatedly(Return(filter_config_name));
+
+  envoy::extensions::filters::http::ext_proc::v3::ExternalProcessor proto_config{};
+  TestUtility::loadFromYaml(R"EOF(
+  grpc_service:
+    envoy_grpc:
+      cluster_name: "ext_proc_server"
+  processing_mode:
+    request_header_mode: "SEND"
+    response_header_mode: "SKIP"
+    request_body_mode: "NONE"
+    response_body_mode: "NONE"
+    request_trailer_mode: "SKIP"
+    response_trailer_mode: "SKIP"
+  )EOF", proto_config);
+
+  auto builder_ptr = Envoy::Extensions::Filters::Common::Expr::createBuilder({});
+  builder_ = std::make_shared<Envoy::Extensions::Filters::Common::Expr::BuilderInstance>(
+      std::move(builder_ptr));
+  config_ = std::make_shared<FilterConfig>(proto_config, 200ms, 10000, *stats_store_.rootScope(),
+                                           "ext_proc_prefix", false, builder_, factory_context_);
+
+  // Since request headers SEND is active, we expect client_->start() to be invoked exactly once.
+  auto* base_test = static_cast<HttpFilterTest*>(this);
+  EXPECT_CALL(*client_, start(_, _, _, _))
+      .WillOnce(Invoke([base_test](ExternalProcessorCallbacks& callbacks,
+                                   const Grpc::GrpcServiceConfigWithHashKey& config,
+                                   const Envoy::Http::AsyncClient::StreamOptions& opts,
+                                   Envoy::Http::StreamFilterSidestreamWatermarkCallbacks& watermarks) {
+        return base_test->doStart(callbacks, config, opts, watermarks);
+      }));
+
+  // Instantiation will consume the configured client_ Mock pointer context safely.
+  filter_ = std::make_unique<Filter>(config_, std::move(client_));
+  filter_->setDecoderFilterCallbacks(decoder_callbacks_);
+  filter_->setEncoderFilterCallbacks(encoder_callbacks_);
+
+  // Pre-decode state: both should be null
+  EXPECT_EQ(filter_->decodingStatePtrForTest(), nullptr);
+  EXPECT_EQ(filter_->encodingStatePtrForTest(), nullptr);
+
+  // Trigger decodeHeaders. Since request_header_mode = SEND, DecodingProcessorState must be allocated.
+  EXPECT_EQ(FilterHeadersStatus::StopIteration, filter_->decodeHeaders(request_headers_, false));
+  EXPECT_NE(filter_->decodingStatePtrForTest(), nullptr);
+  EXPECT_EQ(filter_->encodingStatePtrForTest(), nullptr);
+
+  // Process the request headers response to satisfy gRPC outstanding request and resume decoding.
+  processRequestHeaders(false, absl::nullopt);
+
+  // Trigger encodeHeaders. Since response path is skipped, EncodingProcessorState remains null.
+  response_headers_.addCopy(LowerCaseString(":status"), "200");
+  EXPECT_EQ(FilterHeadersStatus::Continue, filter_->encodeHeaders(response_headers_, false));
+  EXPECT_EQ(filter_->encodingStatePtrForTest(), nullptr);
 
   filter_->onDestroy();
 }
@@ -4828,7 +5040,7 @@ TEST_F(HttpFilterTest, GrpcServiceMetadataOverride) {
       makeHeaderValue("c", "c");
   FilterConfigPerRoute route_config(route_proto, builder_, factory_context_);
   EXPECT_CALL(decoder_callbacks_, perFilterConfigs())
-      .WillOnce(
+      .WillRepeatedly(
           testing::Invoke([&]() -> Router::RouteSpecificFilterConfigs { return {&route_config}; }));
 
   // Build expected merged grpc_service configuration.
@@ -5911,7 +6123,7 @@ TEST_F(HttpFilterTest, ClusterMetadataOptionsOverride) {
   FilterConfigPerRoute route_config(override_cfg, builder_, factory_context_);
 
   EXPECT_CALL(decoder_callbacks_, perFilterConfigs())
-      .WillOnce(
+      .WillRepeatedly(
           testing::Invoke([&]() -> Router::RouteSpecificFilterConfigs { return {&route_config}; }));
 
   response_headers_.addCopy(LowerCaseString(":status"), "200");

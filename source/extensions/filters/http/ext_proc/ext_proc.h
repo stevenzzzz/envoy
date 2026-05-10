@@ -595,6 +595,10 @@ public:
   const DecodingProcessorState& decodingState() const;
   EncodingProcessorState& encodingState();
   const EncodingProcessorState& encodingState() const;
+
+  const DecodingProcessorState* decodingStatePtrForTest() const { return decoding_state_.get(); }
+  const EncodingProcessorState* encodingStatePtrForTest() const { return encoding_state_.get(); }
+
   void onComplete(envoy::service::ext_proc::v3::ProcessingResponse& response) override;
   void onError() override;
 
@@ -613,6 +617,17 @@ public:
 private:
   void ensureDecodingState() const;
   void ensureEncodingState() const;
+  struct ResolvedMetadataNamespaces {
+    const std::vector<std::string>& untyped_forwarding;
+    const std::vector<std::string>& typed_forwarding;
+    const std::vector<std::string>& untyped_receiving;
+    const std::vector<std::string>& untyped_cluster_forwarding;
+    const std::vector<std::string>& typed_cluster_forwarding;
+  };
+  ResolvedMetadataNamespaces resolveAllMetadataNamespaces() const;
+  const std::vector<std::string>& resolveMetadataNamespaces(
+      const absl::optional<const std::vector<std::string>>& (FilterConfigPerRoute::*route_getter)() const,
+      const std::vector<std::string>& (FilterConfig::*config_getter)() const) const;
   void applyConfigurations(ProcessorState& state) const;
   void mergePerRouteConfig();
   StreamOpenState openStream();
@@ -703,12 +718,14 @@ private:
 
   mutable std::unique_ptr<EncodingProcessorState> encoding_state_;
 
-  std::unique_ptr<FilterConfigPerRoute> merged_config_;
+  const FilterConfigPerRoute* merged_config_ = nullptr;
   absl::optional<envoy::extensions::filters::http::ext_proc::v3::ProcessingMode> mode_override_;
 
   Http::RequestHeaderMap* request_headers_ = nullptr;
   Http::StreamDecoderFilterCallbacks* decoder_callbacks_ = nullptr;
   Http::StreamEncoderFilterCallbacks* encoder_callbacks_ = nullptr;
+  bool request_body_complete_available_ = false;
+  bool response_body_complete_available_ = false;
 
   Http::StreamFilterCallbacks* filter_callbacks_;
   Http::StreamFilterSidestreamWatermarkCallbacks watermark_callbacks_;

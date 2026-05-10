@@ -690,39 +690,48 @@ Filter::Filter(const FilterConfigSharedPtr& config, ClientBasePtr&& client)
       on_processing_response_(config->createOnProcessingResponse()),
       failure_mode_allow_(config->failureModeAllow()) {}
 
+const std::vector<std::string>& Filter::resolveMetadataNamespaces(
+    const absl::optional<const std::vector<std::string>>& (FilterConfigPerRoute::*route_getter)() const,
+    const std::vector<std::string>& (FilterConfig::*config_getter)() const) const {
+  if (merged_config_ && (merged_config_->*route_getter)().has_value()) {
+    return *(merged_config_->*route_getter)();
+  }
+  return (config_.get()->*config_getter)();
+}
+
+Filter::ResolvedMetadataNamespaces Filter::resolveAllMetadataNamespaces() const {
+  return {
+      resolveMetadataNamespaces(
+          &FilterConfigPerRoute::untypedForwardingMetadataNamespaces,
+          &FilterConfig::untypedForwardingMetadataNamespaces),
+      resolveMetadataNamespaces(
+          &FilterConfigPerRoute::typedForwardingMetadataNamespaces,
+          &FilterConfig::typedForwardingMetadataNamespaces),
+      resolveMetadataNamespaces(
+          &FilterConfigPerRoute::untypedReceivingMetadataNamespaces,
+          &FilterConfig::untypedReceivingMetadataNamespaces),
+      resolveMetadataNamespaces(
+          &FilterConfigPerRoute::untypedClusterMetadataForwardingNamespaces,
+          &FilterConfig::untypedClusterMetadataForwardingNamespaces),
+      resolveMetadataNamespaces(
+          &FilterConfigPerRoute::typedClusterMetadataForwardingNamespaces,
+          &FilterConfig::typedClusterMetadataForwardingNamespaces)
+  };
+}
+
 void Filter::ensureDecodingState() const {
   if (!decoding_state_) {
-    const std::vector<std::string>& untyped_forwarding =
-        (merged_config_ && merged_config_->untypedForwardingMetadataNamespaces().has_value())
-            ? *merged_config_->untypedForwardingMetadataNamespaces()
-            : config_->untypedForwardingMetadataNamespaces();
-
-    const std::vector<std::string>& typed_forwarding =
-        (merged_config_ && merged_config_->typedForwardingMetadataNamespaces().has_value())
-            ? *merged_config_->typedForwardingMetadataNamespaces()
-            : config_->typedForwardingMetadataNamespaces();
-
-    const std::vector<std::string>& untyped_receiving =
-        (merged_config_ && merged_config_->untypedReceivingMetadataNamespaces().has_value())
-            ? *merged_config_->untypedReceivingMetadataNamespaces()
-            : config_->untypedReceivingMetadataNamespaces();
-
-    const std::vector<std::string>& untyped_cluster_forwarding =
-        (merged_config_ && merged_config_->untypedClusterMetadataForwardingNamespaces().has_value())
-            ? *merged_config_->untypedClusterMetadataForwardingNamespaces()
-            : config_->untypedClusterMetadataForwardingNamespaces();
-
-    const std::vector<std::string>& typed_cluster_forwarding =
-        (merged_config_ && merged_config_->typedClusterMetadataForwardingNamespaces().has_value())
-            ? *merged_config_->typedClusterMetadataForwardingNamespaces()
-            : config_->typedClusterMetadataForwardingNamespaces();
+    const auto ns = resolveAllMetadataNamespaces();
 
     decoding_state_ = std::make_unique<DecodingProcessorState>(
-        *this, config_->processingMode(), untyped_forwarding,
-        typed_forwarding, untyped_receiving, untyped_cluster_forwarding,
-        typed_cluster_forwarding, config_->keepContentLength());
+        const_cast<Filter&>(*this), config_->processingMode(), ns.untyped_forwarding,
+        ns.typed_forwarding, ns.untyped_receiving, ns.untyped_cluster_forwarding,
+        ns.typed_cluster_forwarding, config_->keepContentLength());
     if (decoder_callbacks_) {
       decoding_state_->setDecoderFilterCallbacks(*decoder_callbacks_);
+    }
+    if (request_body_complete_available_) {
+      decoding_state_->setCompleteBodyAvailable(true);
     }
     applyConfigurations(*decoding_state_);
   }
@@ -730,40 +739,20 @@ void Filter::ensureDecodingState() const {
 
 void Filter::ensureEncodingState() const {
   if (!encoding_state_) {
-    const std::vector<std::string>& untyped_forwarding =
-        (merged_config_ && merged_config_->untypedForwardingMetadataNamespaces().has_value())
-            ? *merged_config_->untypedForwardingMetadataNamespaces()
-            : config_->untypedForwardingMetadataNamespaces();
-
-    const std::vector<std::string>& typed_forwarding =
-        (merged_config_ && merged_config_->typedForwardingMetadataNamespaces().has_value())
-            ? *merged_config_->typedForwardingMetadataNamespaces()
-            : config_->typedForwardingMetadataNamespaces();
-
-    const std::vector<std::string>& untyped_receiving =
-        (merged_config_ && merged_config_->untypedReceivingMetadataNamespaces().has_value())
-            ? *merged_config_->untypedReceivingMetadataNamespaces()
-            : config_->untypedReceivingMetadataNamespaces();
-
-    const std::vector<std::string>& untyped_cluster_forwarding =
-        (merged_config_ && merged_config_->untypedClusterMetadataForwardingNamespaces().has_value())
-            ? *merged_config_->untypedClusterMetadataForwardingNamespaces()
-            : config_->untypedClusterMetadataForwardingNamespaces();
-
-    const std::vector<std::string>& typed_cluster_forwarding =
-        (merged_config_ && merged_config_->typedClusterMetadataForwardingNamespaces().has_value())
-            ? *merged_config_->typedClusterMetadataForwardingNamespaces()
-            : config_->typedClusterMetadataForwardingNamespaces();
+    const auto ns = resolveAllMetadataNamespaces();
 
     encoding_state_ = std::make_unique<EncodingProcessorState>(
-        *this, config_->processingMode(), untyped_forwarding,
-        typed_forwarding, untyped_receiving, untyped_cluster_forwarding,
-        typed_cluster_forwarding, config_->keepContentLength());
+        const_cast<Filter&>(*this), config_->processingMode(), ns.untyped_forwarding,
+        ns.typed_forwarding, ns.untyped_receiving, ns.untyped_cluster_forwarding,
+        ns.typed_cluster_forwarding, config_->keepContentLength());
     if (encoder_callbacks_) {
       encoding_state_->setEncoderFilterCallbacks(*encoder_callbacks_);
     }
     if (request_headers_) {
       encoding_state_->setRequestHeaders(request_headers_);
+    }
+    if (response_body_complete_available_) {
+      encoding_state_->setCompleteBodyAvailable(true);
     }
     applyConfigurations(*encoding_state_);
   }
@@ -775,6 +764,21 @@ void Filter::applyConfigurations(ProcessorState& state) const {
       state.setProcessingMode(allDisabledMode());
     } else if (merged_config_->processingMode().has_value()) {
       state.setProcessingMode(*(merged_config_->processingMode()));
+    }
+    if (merged_config_->untypedForwardingMetadataNamespaces().has_value()) {
+      state.setUntypedForwardingMetadataNamespaces(*merged_config_->untypedForwardingMetadataNamespaces());
+    }
+    if (merged_config_->typedForwardingMetadataNamespaces().has_value()) {
+      state.setTypedForwardingMetadataNamespaces(*merged_config_->typedForwardingMetadataNamespaces());
+    }
+    if (merged_config_->untypedReceivingMetadataNamespaces().has_value()) {
+      state.setUntypedReceivingMetadataNamespaces(*merged_config_->untypedReceivingMetadataNamespaces());
+    }
+    if (merged_config_->untypedClusterMetadataForwardingNamespaces().has_value()) {
+      state.setUntypedClusterMetadataForwardingNamespaces(*merged_config_->untypedClusterMetadataForwardingNamespaces());
+    }
+    if (merged_config_->typedClusterMetadataForwardingNamespaces().has_value()) {
+      state.setTypedClusterMetadataForwardingNamespaces(*merged_config_->typedClusterMetadataForwardingNamespaces());
     }
   }
   if (mode_override_.has_value()) {
@@ -980,6 +984,9 @@ void Filter::onDestroy() {
   if (encoding_state_) {
     encoding_state_->stopMessageTimer();
   }
+  if (stream_) {
+    closeStream();
+  }
 
   if (!config_->grpcService().has_value()) {
     client_->cancel();
@@ -1033,25 +1040,44 @@ FilterHeadersStatus Filter::decodeHeaders(RequestHeaderMap& headers, bool end_st
   ENVOY_STREAM_LOG(trace, "decodeHeaders: end_stream = {}", *decoder_callbacks_, end_stream);
   mergePerRouteConfig();
 
+  // Inspect config/metadata dynamically to determine if we should send headers.
+  // If no request path events are configured, we bypass eager state creation.
+  bool should_send_headers = false;
+  if (mode_override_.has_value()) {
+    should_send_headers = mode_override_->request_header_mode() != envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SKIP;
+  } else if (merged_config_ && merged_config_->processingMode().has_value()) {
+    should_send_headers = merged_config_->processingMode()->request_header_mode() != envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SKIP;
+  } else {
+    should_send_headers = config_->processingMode().request_header_mode() != envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SKIP;
+  }
+
   // Send headers in observability mode.
-  if (decodingState().sendHeaders() && config_->observabilityMode()) {
+  if (should_send_headers && config_->observabilityMode()) {
     return sendHeadersInObservabilityMode(headers, decodingState(), end_stream);
   }
 
   if (end_stream) {
-    decodingState().setCompleteBodyAvailable(true);
+    // Rather than lazily instantiating just to set this boolean, we record request headers
+    // and stream metadata on the Filter class itself. If/when DecodingProcessorState is
+    // instantiated, it will inherit this configuration.
+    request_body_complete_available_ = true;
+    if (decoding_state_) {
+      decoding_state_->setCompleteBodyAvailable(true);
+    }
   }
 
-  // Set the request headers on decoding and encoding state in case they are
-  // needed later.
+  // Store request headers reference on the Filter class.
+  // Directional processor states will fetch this dynamically or have it set upon creation.
   request_headers_ = &headers;
-  decodingState().setRequestHeaders(&headers);
+  if (decoding_state_) {
+    decoding_state_->setRequestHeaders(&headers);
+  }
   if (encoding_state_) {
     encoding_state_->setRequestHeaders(&headers);
   }
 
   FilterHeadersStatus status = FilterHeadersStatus::Continue;
-  if (decodingState().sendHeaders()) {
+  if (should_send_headers) {
     status = onHeaders(decodingState(), headers, end_stream);
     ENVOY_STREAM_LOG(trace, "onHeaders returning {}", *decoder_callbacks_,
                      static_cast<int>(status));
@@ -1059,7 +1085,25 @@ FilterHeadersStatus Filter::decodeHeaders(RequestHeaderMap& headers, bool end_st
     ENVOY_STREAM_LOG(trace, "decodeHeaders: Skipped header processing", *decoder_callbacks_);
   }
 
-  if (!processing_complete_ && decodingState().shouldRemoveContentLength()) {
+  // Check if we should remove content length.
+  // Remove content length statically if the send mode might mutate the body later.
+  bool should_remove_content_length = false;
+  if (!processing_complete_) {
+    auto body_mode = config_->processingMode().request_body_mode();
+    if (merged_config_ && merged_config_->processingMode().has_value()) {
+      body_mode = merged_config_->processingMode()->request_body_mode();
+    }
+    if (!config_->keepContentLength()) {
+      should_remove_content_length = (
+          body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::STREAMED ||
+          body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::FULL_DUPLEX_STREAMED ||
+          body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::BUFFERED_PARTIAL ||
+          (body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::BUFFERED && !should_send_headers)
+      );
+    }
+  }
+
+  if (should_remove_content_length) {
     headers.removeContentLength();
   }
   return status;
@@ -1314,7 +1358,12 @@ bool Filter::hasExternalProcess(envoy::config::core::v3::TrafficDirection traffi
            mode.response_body_mode() != ProcessingMode::NONE;
   }
   if (merged_config_) {
-    return merged_config_->hasExternalProcess(traffic_direction);
+    if (merged_config_->disabled()) {
+      return false;
+    }
+    if (merged_config_->processingMode().has_value()) {
+      return merged_config_->hasExternalProcess(traffic_direction);
+    }
   }
   return config_->hasExternalProcess(traffic_direction);
 }
@@ -1520,27 +1569,65 @@ FilterHeadersStatus Filter::encodeHeaders(ResponseHeaderMap& headers, bool end_s
   // local reply.
   mergePerRouteConfig();
 
-  if (encodingState().sendHeaders() && config_->observabilityMode()) {
+  // Inspect configuration dynamically to determine if response headers need to be sent.
+  // If skipped, we keep encoding_state_ as nullptr.
+  bool should_send_headers = false;
+  if (mode_override_.has_value()) {
+    should_send_headers = mode_override_->response_header_mode() != envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SKIP;
+  } else if (merged_config_ && merged_config_->processingMode().has_value()) {
+    should_send_headers = merged_config_->processingMode()->response_header_mode() != envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SKIP;
+  } else {
+    should_send_headers = config_->processingMode().response_header_mode() != envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::SKIP;
+  }
+
+  if (should_send_headers && config_->observabilityMode()) {
     return sendHeadersInObservabilityMode(headers, encodingState(), end_stream);
   }
 
   if (end_stream) {
-    encodingState().setCompleteBodyAvailable(true);
+    response_body_complete_available_ = true;
+    if (encoding_state_) {
+      encoding_state_->setCompleteBodyAvailable(true);
+    }
   }
 
   FilterHeadersStatus status = FilterHeadersStatus::Continue;
-  if (!processing_complete_ && encodingState().sendHeaders()) {
+  if (!processing_complete_ && should_send_headers) {
     status = onHeaders(encodingState(), headers, end_stream);
     ENVOY_STREAM_LOG(trace, "onHeaders returns {}", *decoder_callbacks_, static_cast<int>(status));
   } else {
     ENVOY_STREAM_LOG(trace, "encodeHeaders: Skipped header processing", *decoder_callbacks_);
   }
 
-  if (!processing_complete_ && encodingState().shouldRemoveContentLength()) {
+  // Statically check if we should remove content length without instantiating state.
+  bool should_remove_content_length = false;
+  if (!processing_complete_) {
+    auto body_mode = config_->processingMode().response_body_mode();
+    if (merged_config_ && merged_config_->processingMode().has_value()) {
+      body_mode = merged_config_->processingMode()->response_body_mode();
+    }
+    if (!config_->keepContentLength()) {
+      should_remove_content_length = (
+          body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::STREAMED ||
+          body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::FULL_DUPLEX_STREAMED ||
+          body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::BUFFERED_PARTIAL ||
+          (body_mode == envoy::extensions::filters::http::ext_proc::v3::ProcessingMode::BUFFERED && !should_send_headers)
+      );
+    }
+  }
+
+  if (should_remove_content_length) {
     headers.removeContentLength();
   }
 
-  if (encodingState().noExternalProcess()) {
+  // Handle stream closing optimization for skipped paths dynamically.
+  bool no_external_process = false;
+  if (encoding_state_) {
+    no_external_process = encoding_state_->noExternalProcess();
+  } else {
+    no_external_process = !hasExternalProcess(envoy::config::core::v3::TrafficDirection::OUTBOUND);
+  }
+  if (no_external_process) {
     closeStreamMaybeGraceful();
   }
 
@@ -2009,43 +2096,79 @@ void Filter::onReceiveMessage(std::unique_ptr<ProcessingResponse>&& r) {
   switch (response->response_case()) {
   case ProcessingResponse::ResponseCase::kRequestHeaders:
     setDecoderDynamicMetadata(*response);
-    processing_status = decoding_state_
-                            ? decoding_state_->handleHeadersResponse(response->request_headers())
-                            : absl::FailedPreconditionError("decoding state not initialized");
+    if (decoding_state_) {
+      processing_status = decoding_state_->handleHeadersResponse(response->request_headers());
+    } else {
+      ENVOY_STREAM_LOG(debug,
+                       "Received request_headers response from external processor, but decoding state is not initialized. "
+                       "This is a protocol violation (external processor responding to a phase that was never sent).",
+                       *decoder_callbacks_);
+      processing_status = absl::FailedPreconditionError("decoding state not initialized");
+    }
     break;
   case ProcessingResponse::ResponseCase::kResponseHeaders:
     setEncoderDynamicMetadata(*response);
-    processing_status = encoding_state_
-                            ? encoding_state_->handleHeadersResponse(response->response_headers())
-                            : absl::FailedPreconditionError("encoding state not initialized");
+    if (encoding_state_) {
+      processing_status = encoding_state_->handleHeadersResponse(response->response_headers());
+    } else {
+      ENVOY_STREAM_LOG(debug,
+                       "Received response_headers response from external processor, but encoding state is not initialized. "
+                       "This is a protocol violation (external processor responding to a phase that was never sent).",
+                       *decoder_callbacks_);
+      processing_status = absl::FailedPreconditionError("encoding state not initialized");
+    }
     break;
   case ProcessingResponse::ResponseCase::kRequestBody:
     eos_seen_in_body =
         decoding_state_ ? eosSeenInBody(*decoding_state_, response->request_body()) : false;
     setDecoderDynamicMetadata(*response);
-    processing_status = decoding_state_
-                            ? decoding_state_->handleBodyResponse(response->request_body())
-                            : absl::FailedPreconditionError("decoding state not initialized");
+    if (decoding_state_) {
+      processing_status = decoding_state_->handleBodyResponse(response->request_body());
+    } else {
+      ENVOY_STREAM_LOG(debug,
+                       "Received request_body response from external processor, but decoding state is not initialized. "
+                       "This is a protocol violation (external processor responding to a phase that was never sent).",
+                       *decoder_callbacks_);
+      processing_status = absl::FailedPreconditionError("decoding state not initialized");
+    }
     break;
   case ProcessingResponse::ResponseCase::kResponseBody:
     eos_seen_in_body =
         encoding_state_ ? eosSeenInBody(*encoding_state_, response->response_body()) : false;
     setEncoderDynamicMetadata(*response);
-    processing_status = encoding_state_
-                            ? encoding_state_->handleBodyResponse(response->response_body())
-                            : absl::FailedPreconditionError("encoding state not initialized");
+    if (encoding_state_) {
+      processing_status = encoding_state_->handleBodyResponse(response->response_body());
+    } else {
+      ENVOY_STREAM_LOG(debug,
+                       "Received response_body response from external processor, but encoding state is not initialized. "
+                       "This is a protocol violation (external processor responding to a phase that was never sent).",
+                       *decoder_callbacks_);
+      processing_status = absl::FailedPreconditionError("encoding state not initialized");
+    }
     break;
   case ProcessingResponse::ResponseCase::kRequestTrailers:
     setDecoderDynamicMetadata(*response);
-    processing_status = decoding_state_
-                            ? decoding_state_->handleTrailersResponse(response->request_trailers())
-                            : absl::FailedPreconditionError("decoding state not initialized");
+    if (decoding_state_) {
+      processing_status = decoding_state_->handleTrailersResponse(response->request_trailers());
+    } else {
+      ENVOY_STREAM_LOG(debug,
+                       "Received request_trailers response from external processor, but decoding state is not initialized. "
+                       "This is a protocol violation (external processor responding to a phase that was never sent).",
+                       *decoder_callbacks_);
+      processing_status = absl::FailedPreconditionError("decoding state not initialized");
+    }
     break;
   case ProcessingResponse::ResponseCase::kResponseTrailers:
     setEncoderDynamicMetadata(*response);
-    processing_status = encoding_state_
-                            ? encoding_state_->handleTrailersResponse(response->response_trailers())
-                            : absl::FailedPreconditionError("encoding state not initialized");
+    if (encoding_state_) {
+      processing_status = encoding_state_->handleTrailersResponse(response->response_trailers());
+    } else {
+      ENVOY_STREAM_LOG(debug,
+                       "Received response_trailers response from external processor, but encoding state is not initialized. "
+                       "This is a protocol violation (external processor responding to a phase that was never sent).",
+                       *decoder_callbacks_);
+      processing_status = absl::FailedPreconditionError("encoding state not initialized");
+    }
     break;
   case ProcessingResponse::ResponseCase::kStreamedImmediateResponse:
     setEncoderDynamicMetadata(*response);
@@ -2311,7 +2434,25 @@ void Filter::mergePerRouteConfig() {
     return;
   }
 
-  merged_config_ = std::make_unique<FilterConfigPerRoute>(merged_config.value());
+  // Retrieve the most specific FilterConfigPerRoute from the request metadata.
+  // Under Envoy's filter lifecycle model, weighted cluster configurations or route configs
+  // are stored under resolved filter state.
+  const FilterConfigPerRoute* route_config =
+      Http::Utility::resolveMostSpecificPerFilterConfig<FilterConfigPerRoute>(decoder_callbacks_);
+  if (route_config != nullptr) {
+    merged_config_ = route_config;
+  } else {
+    // Fallback: if no highly specific route configuration is resolved, we inspect all
+    // configurations resolved along the route table hierarchy in ascending order of specificity.
+    auto all_configs = Http::Utility::getAllPerFilterConfig<FilterConfigPerRoute>(decoder_callbacks_);
+    if (!all_configs.empty()) {
+      merged_config_ = &all_configs.front().get();
+    }
+  }
+
+  if (merged_config_ == nullptr) {
+    return;
+  }
 
   if (decoding_state_) {
     applyConfigurations(*decoding_state_);
@@ -2338,74 +2479,7 @@ void Filter::mergePerRouteConfig() {
     config_with_hash_key_.setConfig(config);
   }
 
-  if (merged_config_->untypedForwardingMetadataNamespaces().has_value()) {
-    ENVOY_STREAM_LOG(
-        trace, "Setting new untyped forwarding metadata namespaces from per-route configuration",
-        *decoder_callbacks_);
-    const auto& ns = *merged_config_->untypedForwardingMetadataNamespaces();
-    if (decoding_state_) {
-      decoding_state_->setUntypedForwardingMetadataNamespaces(ns);
-    }
-    if (encoding_state_) {
-      encoding_state_->setUntypedForwardingMetadataNamespaces(ns);
-    }
-  }
 
-  if (merged_config_->typedForwardingMetadataNamespaces().has_value()) {
-    ENVOY_STREAM_LOG(
-        trace, "Setting new typed forwarding metadata namespaces from per-route configuration",
-        *decoder_callbacks_);
-    const auto& ns = *merged_config_->typedForwardingMetadataNamespaces();
-    if (decoding_state_) {
-      decoding_state_->setTypedForwardingMetadataNamespaces(ns);
-    }
-    if (encoding_state_) {
-      encoding_state_->setTypedForwardingMetadataNamespaces(ns);
-    }
-  }
-
-  if (merged_config_->untypedReceivingMetadataNamespaces().has_value()) {
-    ENVOY_STREAM_LOG(
-        trace, "Setting new untyped receiving metadata namespaces from per-route configuration",
-        *decoder_callbacks_);
-    const auto& ns = *merged_config_->untypedReceivingMetadataNamespaces();
-    if (decoding_state_) {
-      decoding_state_->setUntypedReceivingMetadataNamespaces(ns);
-    }
-    if (encoding_state_) {
-      encoding_state_->setUntypedReceivingMetadataNamespaces(ns);
-    }
-  }
-
-  if (merged_config_->untypedClusterMetadataForwardingNamespaces().has_value()) {
-    ENVOY_STREAM_LOG(trace,
-                     "Setting new untyped cluster metadata forwarding "
-                     "namespaces from per-route "
-                     "configuration",
-                     *decoder_callbacks_);
-    const auto& ns = *merged_config_->untypedClusterMetadataForwardingNamespaces();
-    if (decoding_state_) {
-      decoding_state_->setUntypedClusterMetadataForwardingNamespaces(ns);
-    }
-    if (encoding_state_) {
-      encoding_state_->setUntypedClusterMetadataForwardingNamespaces(ns);
-    }
-  }
-
-  if (merged_config_->typedClusterMetadataForwardingNamespaces().has_value()) {
-    ENVOY_STREAM_LOG(trace,
-                     "Setting new typed cluster metadata forwarding namespaces "
-                     "from per-route "
-                     "configuration",
-                     *decoder_callbacks_);
-    const auto& ns = *merged_config_->typedClusterMetadataForwardingNamespaces();
-    if (decoding_state_) {
-      decoding_state_->setTypedClusterMetadataForwardingNamespaces(ns);
-    }
-    if (encoding_state_) {
-      encoding_state_->setTypedClusterMetadataForwardingNamespaces(ns);
-    }
-  }
 
   if (merged_config_->failureModeAllow().has_value()) {
     ENVOY_STREAM_LOG(trace, "Setting new failureModeAllow from per-route configuration",
